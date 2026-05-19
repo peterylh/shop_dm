@@ -184,7 +184,7 @@ olist 项目: 输出到 `olist/lineage.html` 和 `olist/lineage_job.html`
 | 层 | 分区列 | 说明 |
 |----|--------|------|
 | ODS | `create_time` | 全量刷新，按源系统创建时间分区 |
-| DWD 维度 | `etl_time` (日期级) | 每日快照，追加模式，UNIQUE KEY 含 `etl_time` |
+| DWD 维度 | `snapshot_date` | 每日快照，追加模式，UNIQUE KEY 含 `snapshot_date`，`etl_time` 为纯加工时间戳 |
 | DWD 事实 | `order_date` | 全量刷新，按业务日期分区 |
 | DWS 日表 | `stat_date` | 全量刷新，按统计日期分区 |
 | DWS 月表 | `stat_month_date` | 仅刷新当月分区，DELETE + INSERT |
