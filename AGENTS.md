@@ -22,11 +22,13 @@ shop-dm/
 │   ├── __init__.py
 │   └── ddl_deriver.py       # 核心: DDL 解析 + 变更推导引擎
 ├── shop/
-│   ├── ddl/                 # 各层表结构定义 (含 INIT DML)
+│   ├── ddl/                 # 各层表结构定义 (纯结构，无初始化数据)
 │   │   ├── ods_*.sql        # ODS 贴源层
 │   │   ├── dwd_*.sql        # DWD 明细层
 │   │   ├── dws_*.sql        # DWS 汇总层
 │   │   └── ads_*.sql        # ADS 应用层
+│   ├── data/                # 数据初始化脚本
+│   │   └── ods_*.sql        # ODS 贴源层初始化数据 (INSERT INTO)
 │   └── tasks/               # ETL 加工作业 SQL
 │       ├── dwd_*.sql        # ods → dwd 加工
 │       ├── dws_*.sql        # dwd → dws 加工
