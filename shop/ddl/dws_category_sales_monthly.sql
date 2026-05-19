@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS shop_dm.dws_category_sales_monthly (
     sale_amount    DECIMAL(14,2) NOT NULL DEFAULT 0.00 COMMENT '销售金额',
     etl_time       DATETIME      NOT NULL COMMENT 'ETL处理时间'
 ) ENGINE=OLAP
-UNIQUE KEY(category_id, stat_month)
+UNIQUE KEY(category_id, stat_month, stat_month_date)
 PARTITION BY RANGE(stat_month_date) (
     PARTITION p202501 VALUES LESS THAN ("2025-02-01"),
     PARTITION p202502 VALUES LESS THAN ("2025-03-01"),

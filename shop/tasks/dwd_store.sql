@@ -9,6 +9,7 @@
 INSERT INTO shop_dm.dwd_store
 SELECT
     store_id,
+    CAST(CURDATE() AS DATETIME) AS etl_time,
     store_name,
     COALESCE(NULLIF(store_type, ''),
         CASE
@@ -37,6 +38,5 @@ SELECT
     area_size,
     open_date,
     ROUND(TIMESTAMPDIFF(MONTH, open_date, CURDATE()) / 12.0, 1) AS open_years,
-    status,
-    CAST(CURDATE() AS DATETIME) AS etl_time
+    status
 FROM shop_dm.ods_store;

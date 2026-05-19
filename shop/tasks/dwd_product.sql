@@ -9,6 +9,7 @@
 INSERT INTO shop_dm.dwd_product
 SELECT
     p.product_id,
+    CAST(CURDATE() AS DATETIME) AS etl_time,
     p.product_name,
     p.category_id,
     COALESCE(c.category_name, '未分类') AS category_name,
@@ -21,7 +22,6 @@ SELECT
     ROUND((p.unit_price - p.cost_price) / NULLIF(p.unit_price, 0) * 100, 2) AS gross_margin,
     p.spec,
     p.barcode,
-    p.status,
-    CAST(CURDATE() AS DATETIME) AS etl_time
+    p.status
 FROM shop_dm.ods_product p
 LEFT JOIN shop_dm.ods_category c ON p.category_id = c.category_id;

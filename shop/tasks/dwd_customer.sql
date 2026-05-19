@@ -9,6 +9,7 @@
 INSERT INTO shop_dm.dwd_customer
 SELECT
     customer_id,
+    CAST(CURDATE() AS DATETIME) AS etl_time,
     customer_name,
     gender,
     age,
@@ -37,7 +38,6 @@ SELECT
         province
     ) AS province,
     COALESCE(NULLIF(member_level, ''), '普通') AS member_level,
-    register_date,
-    CAST(CURDATE() AS DATETIME) AS etl_time
+    register_date
 FROM shop_dm.ods_customer
 WHERE customer_name IS NOT NULL;

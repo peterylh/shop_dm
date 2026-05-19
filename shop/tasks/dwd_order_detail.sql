@@ -13,12 +13,12 @@ INSERT INTO shop_dm.dwd_order_detail
 SELECT
     o.order_id,
     oi.order_item_id,
+    o.order_date,
     o.customer_id,
     o.store_id,
     oi.product_id,
     p.category_id,
     o.promotion_id,
-    o.order_date,
     DATE_FORMAT(o.order_date, '%Y-%m') AS order_month,
     oi.quantity,
     oi.unit_price,

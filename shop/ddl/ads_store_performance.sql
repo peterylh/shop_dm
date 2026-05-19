@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS shop_dm.ads_store_performance (
     performance_score DECIMAL(5,2) NULL COMMENT '绩效评分',
     etl_time         DATETIME      NOT NULL COMMENT 'ETL处理时间'
 ) ENGINE=OLAP
-UNIQUE KEY(store_id, stat_month)
+UNIQUE KEY(store_id, stat_month, stat_month_date)
 PARTITION BY RANGE(stat_month_date) (
     PARTITION p202501 VALUES LESS THAN ("2025-02-01"),
     PARTITION p202502 VALUES LESS THAN ("2025-03-01"),
