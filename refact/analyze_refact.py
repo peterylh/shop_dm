@@ -67,28 +67,14 @@ def parse_partition_col_from_ddl(ddl_text: str) -> str:
 
 def get_partition_col(table_name: str, layer: str,
                       baseline_ddl: dict = None) -> str:
-    """获取表的分区列。优先从基线 DDL 解析, 回退到命名约定。"""
+    """获取表的分区列。从基线 DDL 解析。"""
     if baseline_ddl:
         ddl_text = baseline_ddl.get(table_name)
         if ddl_text:
             col = parse_partition_col_from_ddl(ddl_text)
             if col:
                 return col
-    explicit = {
-        "dwd_customer": "snapshot_date",
-        "dwd_product": "snapshot_date",
-        "dwd_store": "snapshot_date",
-        "dwd_order_detail": "order_date",
-        "dws_category_sales_monthly": "stat_month_date",
-        "ads_store_performance": "stat_month_date",
-    }
-    if table_name in explicit:
-        return explicit[table_name]
-    if layer == "ODS":
-        return "create_time"
-    if "_monthly" in table_name:
-        return "stat_month_date"
-    return "stat_date"
+    return ""
 
 
 def strip_insert_data(ddl_text: str) -> str:

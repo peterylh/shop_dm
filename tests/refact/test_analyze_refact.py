@@ -38,48 +38,47 @@ def test_determine_layer_other():
 
 
 # ============================================================
-# 2. get_partition_col
+# 2. get_partition_col / parse_partition_col_from_ddl
 # ============================================================
 
 
-def test_partition_col_dwd_dimension():
-    assert get_partition_col("dwd_customer", "DWD") == "snapshot_date"
-    assert get_partition_col("dwd_product", "DWD") == "snapshot_date"
-    assert get_partition_col("dwd_store", "DWD") == "snapshot_date"
+def test_get_partition_col_no_baseline():
+    """没有 baseline_ddl 时返回空字符串."""
+    assert get_partition_col("dwd_customer", "DWD") == ""
+    assert get_partition_col("unknown_table", "ADS") == ""
 
 
-def test_partition_col_dwd_fact():
-    assert get_partition_col("dwd_order_detail", "DWD") == "order_date"
+def test_get_partition_col_with_baseline():
+    """baseline_ddl 中有对应表时从 DDL 解析分区列."""
+    ddl = """CREATE TABLE shop_dm.dwd_customer (
+        snapshot_date DATE NOT NULL
+    ) ENGINE=OLAP
+    UNIQUE KEY(customer_id, snapshot_date)
+    PARTITION BY RANGE(snapshot_date) (
+        PARTITION p202501 VALUES LESS THAN ("2025-02-01")
+    )
+    DISTRIBUTED BY HASH(customer_id) BUCKETS 10
+    PROPERTIES ("replication_num" = "1");"""
+    assert get_partition_col("dwd_customer", "DWD",
+                             {"dwd_customer": ddl}) == "snapshot_date"
 
 
-def test_partition_col_dws_daily():
-    assert get_partition_col("dws_store_sales_daily", "DWS") == "stat_date"
-    assert get_partition_col("dws_product_sales_daily", "DWS") == "stat_date"
-    assert get_partition_col("dws_customer_order_summary", "DWS") == "stat_date"
+def test_get_partition_col_with_baseline_no_partition():
+    """baseline_ddl 中表无分区定义时返回空字符串."""
+    ddl = """CREATE TABLE shop_dm.some_table (
+        id BIGINT NOT NULL
+    ) ENGINE=OLAP
+    DUPLICATE KEY(id)
+    DISTRIBUTED BY HASH(id) BUCKETS 10
+    PROPERTIES ("replication_num" = "1");"""
+    assert get_partition_col("some_table", "ADS",
+                             {"some_table": ddl}) == ""
 
 
-def test_partition_col_dws_monthly():
-    assert get_partition_col("dws_category_sales_monthly", "DWS") == "stat_month_date"
-
-
-def test_partition_col_ads_daily():
-    assert get_partition_col("ads_sales_dashboard", "ADS") == "stat_date"
-    assert get_partition_col("ads_product_topn_daily", "ADS") == "stat_date"
-    assert get_partition_col("ads_customer_rfm", "ADS") == "stat_date"
-
-
-def test_partition_col_ads_monthly():
-    assert get_partition_col("ads_store_performance", "ADS") == "stat_month_date"
-
-
-def test_partition_col_ods():
-    assert get_partition_col("ods_order", "ODS") == "create_time"
-    assert get_partition_col("ods_customer", "ODS") == "create_time"
-
-
-def test_partition_col_fallback():
-    assert get_partition_col("unknown_table", "ADS") == "stat_date"
-    assert get_partition_col("some_table", "DWD") == "stat_date"
+def test_get_partition_col_with_baseline_missing():
+    """baseline_ddl 没有对应表时返回空字符串."""
+    assert get_partition_col("ods_order", "ODS", {}) == ""
+    assert get_partition_col("unknown_table", "ADS", {}) == ""
 
 
 def test_parse_partition_col_from_ddl_range():
@@ -135,27 +134,6 @@ def test_parse_partition_col_from_ddl_no_partition():
 def test_parse_partition_col_from_ddl_empty():
     assert parse_partition_col_from_ddl("") == ""
     assert parse_partition_col_from_ddl(None) == ""
-
-
-def test_get_partition_col_with_baseline_ddl_priority():
-    """baseline_ddl 优先级高于硬编码映射."""
-    ddl = """CREATE TABLE shop_dm.dwd_customer (
-        snapshot_date DATE NOT NULL
-    ) ENGINE=OLAP
-    UNIQUE KEY(customer_id, snapshot_date)
-    PARTITION BY RANGE(snapshot_date) (
-        PARTITION p202501 VALUES LESS THAN ("2025-02-01")
-    )
-    DISTRIBUTED BY HASH(customer_id) BUCKETS 10
-    PROPERTIES ("replication_num" = "1");"""
-    assert get_partition_col("dwd_customer", "DWD",
-                             {"dwd_customer": ddl}) == "snapshot_date"
-
-
-def test_get_partition_col_with_baseline_ddl_fallback():
-    """baseline_ddl 没有对应表时回退到命名约定."""
-    assert get_partition_col("ods_order", "ODS", {}) == "create_time"
-    assert get_partition_col("unknown_table", "ADS", {}) == "stat_date"
 
 
 # ============================================================
