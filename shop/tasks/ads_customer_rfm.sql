@@ -2,11 +2,13 @@
 -- 加工作业: ADS 客户RFM分析表
 -- 源表: dws_customer_order_summary
 -- 加工逻辑: 计算RFM指标 -> NTILE打分 -> 客户分层 -> 填充默认值
--- 写入模式: 全量刷新,按 stat_date 分区
+-- 写入模式: 按 stat_date 分区, DELETE + INSERT 按日处理
 -- ============================================================
 
--- Step 1: 清空目标表
-TRUNCATE TABLE shop_dm.ads_customer_rfm;
+SET @etl_date = COALESCE(@etl_date, CURDATE());
+
+-- Step 1: 删除当前统计日期的数据
+DELETE FROM shop_dm.ads_customer_rfm WHERE stat_date = CAST(@etl_date AS DATE);
 
 -- Step 2: 计算 RFM 指标 + NTILE 分项评分 + 综合评分 + 客户分层
 INSERT INTO shop_dm.ads_customer_rfm
@@ -14,10 +16,11 @@ WITH rfm_base AS (
     SELECT
         customer_id,
         MAX(stat_date) AS last_order_date,
-        DATEDIFF(CURDATE(), MAX(stat_date)) AS recency_days,
+        DATEDIFF(CAST(@etl_date AS DATE), MAX(stat_date)) AS recency_days,
         SUM(order_count) AS frequency,
         SUM(payment_amount) AS monetary
     FROM shop_dm.dws_customer_order_summary
+    WHERE stat_date <= CAST(@etl_date AS DATE)
     GROUP BY customer_id
 ),
 rfm_scored AS (
@@ -36,7 +39,7 @@ rfm_scored AS (
 )
 SELECT
     customer_id,
-    CURDATE() AS stat_date,
+    CAST(@etl_date AS DATE) AS stat_date,
     recency_days,
     frequency,
     monetary,
@@ -65,4 +68,5 @@ FROM rfm_scored;
 -- Step 3: 客户分层为空时标记为一般价值客户
 UPDATE shop_dm.ads_customer_rfm
 SET customer_segment = '一般价值客户'
-WHERE customer_segment IS NULL;
+WHERE customer_segment IS NULL
+  AND stat_date = CAST(@etl_date AS DATE);

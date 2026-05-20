@@ -49,6 +49,8 @@ def main():
     parser = argparse.ArgumentParser(description="数据重新初始化")
     parser.add_argument("--project", required=True, choices=list(PROJECT_CONFIG.keys()))
     parser.add_argument("--db-env", default="prod", choices=list(DB_ENV_CONFIG.keys()))
+    parser.add_argument("--etl-dates", nargs="*", default=None,
+                        help="ETL 日期列表 (YYYY-MM-DD), 不传则自动从 ODS 发现")
     args = parser.parse_args()
 
     project = args.project
@@ -104,15 +106,18 @@ def main():
         if project == "olist":
             print(f"  参考: python {PROJECT_CONFIG[project]['dir']}/import_data.py")
 
-    # ── Step 3: 自动发现分区日期 ──
+    # ── Step 3: 确定 ETL 日期 ──
     print(f"\n{'=' * 60}")
-    print("Step 3: 自动发现 ODS 分区日期")
-
-    etl_dates = get_etl_date_partitions(db_name, env_cmd)
-    if not etl_dates:
-        print("  ODS 表中无数据, 无法确定 etl_date")
-        sys.exit(1)
-    print(f"  发现 {len(etl_dates)} 个日期: {', '.join(etl_dates)}")
+    if args.etl_dates:
+        etl_dates = args.etl_dates
+        print(f"Step 3: 使用指定的 ETL 日期 ({len(etl_dates)} 个)")
+    else:
+        print("Step 3: 自动发现 ODS 分区日期")
+        etl_dates = get_etl_date_partitions(db_name, env_cmd)
+        if not etl_dates:
+            print("  ODS 表中无数据, 无法确定 etl_date")
+            sys.exit(1)
+    print(f"  ETL 日期: {', '.join(etl_dates)}")
 
     # ── Step 4: 调用 task_run.py ──
     print(f"\n{'=' * 60}")

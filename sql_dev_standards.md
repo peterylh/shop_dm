@@ -34,6 +34,7 @@
 
 ```sql
 -- {层} {表中文说明}
+-- table_id: uuid
 DROP TABLE IF EXISTS {db}.{table_name};
 CREATE TABLE IF NOT EXISTS {db}.{table_name} (
     id BIGINT NOT NULL COMMENT 'ID',
@@ -46,7 +47,8 @@ PROPERTIES ("replication_num" = "1");
 
 ### 要点
 
-- 文件头注释说明表用途
+- 文件头注释说明表用途、主键、数据类型、金额字段等
+- table_id 为 UUID4 字符串, 不要编辑table_id
 - 主键列 `NOT NULL`，附中文 COMMENT
 - 枚举值在 COMMENT 中列出可选值（如 `COMMENT '状态: 已完成/已取消'`）
 - 数据类型优先级：`BIGINT` > `DECIMAL(12,2)` > `DATE/DATETIME` > `VARCHAR(n)`
