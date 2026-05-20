@@ -19,6 +19,7 @@ from ddl_deriver.ddl_deriver import (
     _find_git_root,
     _get_merge_base,
     _git_cmd,
+    AlterTable,
     derive_ddl_changes,
     load_tables_from_dir,
     _load_git_tables,
@@ -183,17 +184,48 @@ def main():
     table_to_job = {f.stem: f.stem for f in tasks_dir.glob("*.sql")}
     modified_tables = set(ddl_table_names) | modified_jobs
 
-    # ── 下游追踪 ──
+    # ── 下游追踪 (表级 + 列级) ──
     downstream = dag.bfs_downstream(lineage_search_names)
-    all_affected = modified_tables | downstream
     print(f"  修改表: {sorted(modified_tables)}")
-    print(f"  下游表: {sorted(downstream)}")
+    print(f"  表级下游表: {sorted(downstream)}")
+
+    # ── 列级下游: 从 DDL 变更中提取被修改的列, 查列级血缘找到真正受影响的表 ──
+    changed_columns = {}  # short_table_name → set of old column names
+    for ch in ddl_changes:
+        if isinstance(ch, AlterTable):
+            short = ch.table_name.split(".")[-1] if "." in ch.table_name else ch.table_name
+            cc = changed_columns.setdefault(short, set())
+            for old_name, new_name in ch.renames:
+                cc.add(old_name)
+            for col in ch.drops:
+                cc.add(col.name)
+            for old, new in ch.modifies:
+                cc.add(old.name)
+
+    column_downstream = set()
+    for short, cols in changed_columns.items():
+        for col in cols:
+            source_id = f"{short}.{col}"
+            for edge in lineage.get("edges", []):
+                if edge.get("source") == source_id:
+                    target_table = edge["target"].rsplit(".", 1)[0]
+                    if target_table != short:
+                        column_downstream.add(target_table)
+
+    print(f"  列级下游表: {sorted(column_downstream)}")
+
+    # ── 受影响集合 = 修改表 + 列级下游 + 两者之间的传递下游 ──
+    column_all_affected = set(modified_tables) | column_downstream
+    # 把列级下游及其到 ADS 之间的中间表也补全
+    column_all_affected.update(dag.bfs_downstream(column_downstream))
+    all_affected = column_all_affected | set(modified_tables)
 
     # ── 锚点 ──
     if args.anchor:
         anchors = list(args.anchor)
     else:
-        anchors = sorted(t for t in all_affected if determine_layer(t) == "ADS")
+        anchors = sorted(t for t in column_downstream
+                        if determine_layer(t) == "ADS")
     print(f"  锚点表: {anchors}")
 
     # ── 基线 DDL (先加载, 分区选择需要它解析列名) ──

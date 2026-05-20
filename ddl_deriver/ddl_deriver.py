@@ -141,6 +141,9 @@ class AlterTable(DDLChange):
     modifies: List[Tuple[ColumnDef, ColumnDef]] = field(
         default_factory=list
     )  # (old, new)
+    renames: List[Tuple[str, str]] = field(
+        default_factory=list
+    )  # (old_name, new_name)
 
     def __init__(
         self,
@@ -150,6 +153,7 @@ class AlterTable(DDLChange):
         adds=None,
         drops=None,
         modifies=None,
+        renames=None,
     ):
         super().__init__("ALTER")
         self.table_name = table_name
@@ -158,11 +162,14 @@ class AlterTable(DDLChange):
         self.adds = adds or []
         self.drops = drops or []
         self.modifies = modifies or []
+        self.renames = renames or []
 
     def to_sql(self) -> str:
         parts = []
         for col in self.drops:
             parts.append(f"DROP COLUMN {col.name}")
+        for old_name, new_name in self.renames:
+            parts.append(f"RENAME COLUMN {old_name} {new_name}")
         for col in self.adds:
             nullable = "NULL" if col.nullable else "NOT NULL"
             default = f"DEFAULT {col.default}" if col.default else ""
@@ -500,7 +507,10 @@ def derive_ddl_changes(old_tables: dict, new_tables: dict) -> List[DDLChange]:
 
 
 def _derive_alter_columns(old: TableDef, new: TableDef) -> dict:
-    """逐列对比 old/new 同名 table,返回 {adds, drops, modifies}."""
+    """逐列对比 old/new 同名 table,返回 {adds, drops, modifies, renames}.
+
+    列重命名检测: 配对 data_type + nullable 均相同的 drop/add 列为 rename。
+    """
     old_cols = {c.name: c for c in old.columns}
     new_cols = {c.name: c for c in new.columns}
 
@@ -509,6 +519,24 @@ def _derive_alter_columns(old: TableDef, new: TableDef) -> dict:
 
     dropped = [old_cols[n] for n in sorted(old_names - new_names)]
     added = [new_cols[n] for n in sorted(new_names - old_names)]
+
+    # 检测列重命名: 按 data_type + nullable 配对
+    renames = []
+    matched_drops = set()
+    matched_adds = set()
+    for di, drop_col in enumerate(dropped):
+        for ai, add_col in enumerate(added):
+            if ai in matched_adds:
+                continue
+            if drop_col.data_type == add_col.data_type and drop_col.nullable == add_col.nullable:
+                renames.append((drop_col.name, add_col.name))
+                matched_drops.add(di)
+                matched_adds.add(ai)
+                break
+
+    if renames:
+        dropped = [c for i, c in enumerate(dropped) if i not in matched_drops]
+        added = [c for i, c in enumerate(added) if i not in matched_adds]
 
     modified = []
     for name in sorted(old_names & new_names):
@@ -522,7 +550,7 @@ def _derive_alter_columns(old: TableDef, new: TableDef) -> dict:
         ):
             modified.append((old_c, new_c))
 
-    return {"adds": added, "drops": dropped, "modifies": modified}
+    return {"adds": added, "drops": dropped, "modifies": modified, "renames": renames}
 
 
 def alter_to_change(
@@ -535,6 +563,7 @@ def alter_to_change(
         adds=alters["adds"],
         drops=alters["drops"],
         modifies=alters["modifies"],
+        renames=alters.get("renames", []),
     )
 
 
@@ -555,6 +584,8 @@ def format_changes(changes: List[DDLChange]) -> str:
             lines.append(f"-- 重命名: {ch.old_name} → {ch.new_name}")
         elif isinstance(ch, AlterTable):
             lines.append(f"-- 修改表: {ch.table_name}")
+            if ch.renames:
+                lines.append(f"--   重命名列: {', '.join(f'{o}→{n}' for o, n in ch.renames)}")
             if ch.drops:
                 lines.append(f"--   删列: {', '.join(c.name for c in ch.drops)}")
             if ch.adds:
@@ -583,6 +614,7 @@ def changes_to_json(changes: List[DDLChange]) -> dict:
             entry["table_name"] = ch.table_name
             entry["adds"] = [asdict(c) for c in ch.adds]
             entry["drops"] = [asdict(c) for c in ch.drops]
+            entry["renames"] = [{"old": o, "new": n} for o, n in ch.renames]
             entry["modifies"] = [
                 {"old": asdict(o), "new": asdict(n)} for o, n in ch.modifies
             ]
