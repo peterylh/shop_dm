@@ -131,18 +131,31 @@ def main():
     ddl_changes = derive_ddl_changes(old_tables, new_tables)
 
     ddl_table_names = set()
+    lineage_search_names = set()
     for ch in ddl_changes:
-        name = getattr(ch, "table_name", None) or getattr(ch, "old_name", None) or ""
-        ddl_table_names.add(name.split(".")[-1] if "." in name else name)
+        if ch.change_type == "RENAME":
+            old_short = ch.old_name.split(".")[-1] if "." in ch.old_name else ch.old_name
+            new_short = ch.new_name.split(".")[-1] if "." in ch.new_name else ch.new_name
+            ddl_table_names.add(new_short)
+            lineage_search_names.add(old_short)
+            lineage_search_names.add(new_short)
+        else:
+            name = getattr(ch, "table_name", None) or getattr(ch, "old_name", None) or ""
+            short = name.split(".")[-1] if "." in name else name
+            ddl_table_names.add(short)
+            lineage_search_names.add(short)
     print(f"  旧 DDL: {len(old_tables)} 张表  新 DDL: {len(new_tables)} 张表")
     print(f"  变更: {len(ddl_changes)} 条")
     for ch in ddl_changes:
-        name = getattr(ch, "table_name", None) or getattr(ch, "old_name", None) or ""
-        print(f"    [{ch.change_type}] {name}")
+        if ch.change_type == "RENAME":
+            print(f"    [{ch.change_type}] {ch.old_name} → {ch.new_name}")
+        else:
+            name = getattr(ch, "table_name", None) or getattr(ch, "old_name", None) or ""
+            print(f"    [{ch.change_type}] {name}")
 
     # ── 作业变更 ──
     print("\n--- 作业变更 ---")
-    diff_raw = _git_cmd(repo, "diff", "--name-only", f"{base_ref}...HEAD", "--",
+    diff_raw = _git_cmd(repo, "diff", "--no-renames", "--name-only", f"{base_ref}...HEAD", "--",
                         f"{cfg['dir']}/tasks/*.sql")
     modified_jobs = set()
     for p in diff_raw.splitlines():
@@ -171,7 +184,7 @@ def main():
     modified_tables = set(ddl_table_names) | modified_jobs
 
     # ── 下游追踪 ──
-    downstream = dag.bfs_downstream(modified_tables)
+    downstream = dag.bfs_downstream(lineage_search_names)
     all_affected = modified_tables | downstream
     print(f"  修改表: {sorted(modified_tables)}")
     print(f"  下游表: {sorted(downstream)}")
@@ -265,6 +278,30 @@ def main():
         ed = " [@etl_date]" if j["needs_etl_date"] else ""
         print(f"    [{j['layer']}] {j['job']}{ed}")
 
+    # ── 过滤基线 DDL ──
+    def _short_name(name: str) -> str:
+        return name.split(".")[-1] if "." in name else name
+
+    phase2_creates = set()
+    for ch in ddl_changes:
+        if ch.change_type == "CREATE":
+            phase2_creates.add(_short_name(ch.table_name))
+        elif ch.change_type == "RENAME":
+            phase2_creates.add(_short_name(ch.new_name))
+
+    needed_baseline = set()
+    for ch in ddl_changes:
+        if ch.change_type == "RENAME":
+            needed_baseline.add(_short_name(ch.old_name))
+        elif ch.change_type == "ALTER":
+            needed_baseline.add(_short_name(ch.table_name))
+    for j in jobs_to_run:
+        if j["target"] not in phase2_creates:
+            needed_baseline.add(j["target"])
+    needed_baseline.update(anchors)
+    baseline_ddl = {k: v for k, v in baseline_ddl.items() if k in needed_baseline}
+    print(f"\n=== 基线 DDL (过滤后: {len(baseline_ddl)} 张) ===")
+
     # ── 校验配置 ──
     checks = []
     for a in anchors:
@@ -313,6 +350,12 @@ def main():
     print(f"  执行作业: {len(jobs_to_run)}")
     print(f"  锚点表:   {anchors}")
     print(f"  分区:     {pinfo.get('partition', 'N/A')}")
+
+    if not anchors and ddl_changes:
+        print()
+        print("  ⚠ 警告: 无锚点表 (没有 ADS 层表受变更影响)")
+        print("    后续 verify_run.py 虽能执行作业，但 verify_check.py 将无表可对比校验")
+        print("    数据一致性无法自动验证，请确认变更是否符合预期")
 
 
 if __name__ == "__main__":

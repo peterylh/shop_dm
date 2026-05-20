@@ -156,6 +156,13 @@ def main():
     ddl_changes = meta.get("ddl_changes", [])
     jobs_to_run = meta.get("jobs_to_run", [])
 
+    anchors = meta.get("anchors", [])
+    checks = meta.get("verification", {}).get("checks", [])
+    if not anchors and not checks:
+        print("  ⚠ 警告: 无锚点表且无校验配置")
+        print("    作业会正常执行，但无法通过 verify_check.py 对比校验数据一致性")
+        print("    如果只是想确认作业不报错，可继续执行\n")
+
     if args.dry_run:
         _dry_run(meta)
         return
@@ -260,6 +267,10 @@ def _dry_run(meta):
     print(f"  生产库: {prod_db} → 验证库: {qa_db}")
     print(f"  锚点: {meta['anchors']}")
     print(f"  分区: {meta['partition_info'].get('partition', 'N/A')}")
+    checks = meta.get("verification", {}).get("checks", [])
+    if not meta.get("anchors") and not checks:
+        print()
+        print("  ⚠ 警告: 无锚点表且无校验配置，verify_check.py 将无表可对比校验")
 
     print(f"\n--- Phase 0: 重置验证库 ---")
     print(f"  DROP DATABASE IF EXISTS {qa_db}")
