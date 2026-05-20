@@ -598,6 +598,183 @@ def test_alter_mixed():
     assert {old.name for old, new in a.modifies} == {"phone"}
 
 
+def test_alter_rename_column():
+    """ALTER TABLE: 列重命名 (data_type+nullable 相同 → RENAME COLUMN)."""
+    old_t = TableDef(
+        full_name="shop_dm.dwd_order_detail",
+        short_name="dwd_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("unit_price", "DECIMAL(12,2)", nullable=False, comment="单价"),
+            ColumnDef("quantity", "INT", nullable=False),
+        ],
+        key_type="UNIQUE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+    )
+    new_t = TableDef(
+        full_name="shop_dm.dwd_order_detail",
+        short_name="dwd_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("price_unit", "DECIMAL(12,2)", nullable=False, comment="单价"),
+            ColumnDef("quantity", "INT", nullable=False),
+        ],
+        key_type="UNIQUE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+    )
+    changes = derive_ddl_changes({"dwd_order_detail": old_t}, {"dwd_order_detail": new_t})
+    assert len(changes) == 1
+    a = changes[0]
+    assert isinstance(a, AlterTable)
+    assert len(a.renames) == 1
+    assert a.renames[0] == ("unit_price", "price_unit")
+    assert len(a.drops) == 0
+    assert len(a.adds) == 0
+    assert len(a.modifies) == 0
+    sql = a.to_sql()
+    assert "RENAME COLUMN unit_price price_unit" in sql
+
+
+def test_alter_rename_and_add_column():
+    """ALTER TABLE: 列重命名 + 新增另一列."""
+    old_t = TableDef(
+        full_name="shop_dm.dwd_order_detail",
+        short_name="dwd_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("unit_price", "DECIMAL(12,2)", nullable=False, comment="单价"),
+        ],
+        key_type="UNIQUE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+    )
+    new_t = TableDef(
+        full_name="shop_dm.dwd_order_detail",
+        short_name="dwd_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("price_unit", "DECIMAL(12,2)", nullable=False, comment="单价"),
+            ColumnDef("discount", "DECIMAL(12,2)", nullable=True, comment="折扣"),
+        ],
+        key_type="UNIQUE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+    )
+    changes = derive_ddl_changes({"dwd_order_detail": old_t}, {"dwd_order_detail": new_t})
+    assert len(changes) == 1
+    a = changes[0]
+    assert isinstance(a, AlterTable)
+    assert a.renames == [("unit_price", "price_unit")]
+    assert len(a.adds) == 1
+    assert a.adds[0].name == "discount"
+    assert len(a.drops) == 0
+    sql = a.to_sql()
+    assert "RENAME COLUMN unit_price price_unit" in sql
+    assert "ADD COLUMN discount" in sql
+
+
+def test_alter_rename_no_false_positive():
+    """不同类型/可空性的 drop+add 不应误判为重命名."""
+    old_t = TableDef(
+        full_name="shop_dm.test",
+        short_name="test",
+        columns=[
+            ColumnDef("old_col", "VARCHAR(64)", nullable=False),
+            ColumnDef("keep", "INT", nullable=True),
+        ],
+        key_type="DUPLICATE",
+        key_columns=["old_col"],
+        distribution_col="old_col",
+    )
+    new_t = TableDef(
+        full_name="shop_dm.test",
+        short_name="test",
+        columns=[
+            ColumnDef("new_col", "BIGINT", nullable=True),   # 类型+可空性都不同
+            ColumnDef("keep", "INT", nullable=True),
+        ],
+        key_type="DUPLICATE",
+        key_columns=["new_col"],
+        distribution_col="new_col",
+    )
+    changes = derive_ddl_changes({"test": old_t}, {"test": new_t})
+    assert len(changes) == 1
+    a = changes[0]
+    assert isinstance(a, AlterTable)
+    assert len(a.renames) == 0
+    assert len(a.drops) == 1
+    assert a.drops[0].name == "old_col"
+    assert len(a.adds) == 1
+    assert a.adds[0].name == "new_col"
+
+
+def test_rename_table_with_rename_column():
+    """RENAME TABLE + 列重命名同时发生 (通过 UUID 绑定)."""
+    tid = generate_table_id()
+    old_t = TableDef(
+        full_name="shop_dm.ods_order_detail",
+        short_name="ods_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("unit_price", "DECIMAL(12,2)", nullable=False),
+        ],
+        key_type="DUPLICATE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+        table_id=tid,
+    )
+    new_t = TableDef(
+        full_name="shop_dm.dwd_order_detail",
+        short_name="dwd_order_detail",
+        columns=[
+            ColumnDef("order_id", "BIGINT", nullable=False),
+            ColumnDef("price_unit", "DECIMAL(12,2)", nullable=False),
+        ],
+        key_type="UNIQUE",
+        key_columns=["order_id"],
+        distribution_col="order_id",
+        table_id=tid,
+    )
+    changes = derive_ddl_changes({"ods_order_detail": old_t}, {"dwd_order_detail": new_t})
+    assert len(changes) == 2
+    assert isinstance(changes[0], RenameTable)
+    assert isinstance(changes[1], AlterTable)
+    a = changes[1]
+    assert a.renames == [("unit_price", "price_unit")]
+    assert len(a.adds) == 0
+    assert len(a.drops) == 0
+
+
+def test_alter_rename_output_json():
+    """列重命名在 JSON 输出中的格式."""
+    old_t = TableDef(
+        full_name="shop_dm.test",
+        short_name="test",
+        columns=[ColumnDef("a", "INT"), ColumnDef("b", "VARCHAR(16)")],
+        key_type="DUPLICATE",
+        key_columns=["a"],
+        distribution_col="a",
+    )
+    new_t = TableDef(
+        full_name="shop_dm.test",
+        short_name="test",
+        columns=[ColumnDef("x", "INT"), ColumnDef("b", "VARCHAR(16)")],
+        key_type="DUPLICATE",
+        key_columns=["x"],
+        distribution_col="x",
+    )
+    changes = derive_ddl_changes({"test": old_t}, {"test": new_t})
+    result = changes_to_json(changes)
+    entry = result["changes"][0]
+    assert entry["change_type"] == "ALTER"
+    assert entry["renames"] == [{"old": "a", "new": "x"}]
+    # 确认未出现在 adds/drops 中
+    assert not any(c["name"] == "a" for c in entry["drops"])
+    assert not any(c["name"] == "x" for c in entry["adds"])
+
+
 # ============================================================
 # 5. 无变更
 # ============================================================
