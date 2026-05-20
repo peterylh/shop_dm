@@ -16,23 +16,9 @@ _root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_root))
 
 from lineage.job_dag import JobDAG
-from lineage.lineage_extractor import PROJECT_CONFIG
-
-DB_ENV_CONFIG = {
-    "prod": {"host": "172.16.0.90", "port": "9030", "user": "root"},
-    "test": {"host": "172.16.0.90", "port": "9034", "user": "root"},
-    "qa":   {"host": "172.16.0.90", "port": "9030", "user": "qa"},
-}
+from config import PROJECT_CONFIG, DB_ENV_CONFIG, get_mysql_cmd
 
 
-def _get_db_name(project: str, env: str) -> str:
-    base = PROJECT_CONFIG[project]["db"]
-    return base + "_qa" if env == "qa" else base
-
-
-def _get_mysql_cmd(env: str) -> list[str]:
-    cfg = DB_ENV_CONFIG[env]
-    return ["mysql", f"-h{cfg['host']}", f"-P{cfg['port']}", f"-u{cfg['user']}"]
 
 
 def _build_job_dag(project: str) -> JobDAG:
@@ -75,7 +61,8 @@ def main():
 
     project = args.project
     env = args.db_env
-    db_name = _get_db_name(project, env)
+    cfg = PROJECT_CONFIG[project]
+    db_name = cfg["db"]
 
     dag_path = _root / "lineage" / f"job_dag_{project}.json"
     if args.refresh_dag or not dag_path.exists():
@@ -111,7 +98,7 @@ def main():
     for i, j in enumerate(exec_order, 1):
         print(f"  {i}. {j}")
 
-    mysql_cmd = _get_mysql_cmd(env)
+    mysql_cmd = get_mysql_cmd(env)
     for etl_date in args.etl_dates:
         print(f"\n{'=' * 60}")
         print(f"执行日期: {etl_date}")

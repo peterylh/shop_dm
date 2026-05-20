@@ -6,7 +6,16 @@
 """
 
 import json, os, argparse
+import sys
 from pathlib import Path
+
+# 将项目根目录加入 sys.path 以便导入 config
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+from config import PROJECT_CONFIG
+
 import sqlglot
 from sqlglot import exp
 from sqlglot.lineage import lineage
@@ -15,17 +24,6 @@ from sqlglot.lineage import lineage
 # ============================================================
 # 0. 项目配置
 # ============================================================
-
-PROJECT_CONFIG = {
-    "shop": {
-        "db": "shop_dm",
-        "dir": "shop",
-    },
-    "olist": {
-        "db": "olist_dm",
-        "dir": "olist",
-    },
-}
 
 CURRENT_PROJECT = "shop"
 CURRENT_DB = "shop_dm"

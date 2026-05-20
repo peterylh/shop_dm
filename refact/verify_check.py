@@ -13,18 +13,16 @@
   python refact/verify_check.py --metadata refact/refact_metadata.json --precision 0.001
 """
 
-import json, argparse, sys
+import json, argparse, subprocess, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from config import DORIS_HOST, DORIS_PORT, DORIS_USER, DORIS_QA_USER, get_mysql_cmd
 import pymysql
 
 # ============================================================
 # 连接配置
 # ============================================================
-
-DORIS_HOST = "172.16.0.90"
-DORIS_PORT = 9030
-DORIS_USER = "root"
 
 # ============================================================
 # 辅助
@@ -39,11 +37,11 @@ def fmt_val(v):
     return str(v)
 
 
-def get_pymysql_conn(db_name: str):
+def get_pymysql_conn(db_name: str, qa: bool = False):
     return pymysql.connect(
         host=DORIS_HOST,
         port=DORIS_PORT,
-        user=DORIS_USER,
+        user=DORIS_QA_USER if qa else DORIS_USER,
         database=db_name,
         charset="utf8mb4",
     )
@@ -218,7 +216,7 @@ def main():
     print(f"容差:   {args.precision}")
 
     prod_conn = get_pymysql_conn(prod_db)
-    qa_conn = get_pymysql_conn(qa_db)
+    qa_conn = get_pymysql_conn(qa_db, qa=True)
 
     results = []
     all_pass = True

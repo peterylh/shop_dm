@@ -5,21 +5,23 @@ import json, shutil, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from config import get_mysql_cmd
 from ddl_deriver.ddl_deriver import (
     load_tables_from_dir,
     derive_ddl_changes,
     changes_to_json,
 )
 
-DORIS = ["mysql", "-h172.16.0.90", "-P9030", "-uroot"]
 DB_A, DB_PROD = "shop_dm_a", "shop_dm"
 
 
 def run_doris(sql, db=None):
     if db is None:
         db = DB_A
+    cmd = get_mysql_cmd("prod")
+    cmd.extend([db, "-e", sql])
     r = subprocess.run(
-        DORIS + [db, "-e", sql], capture_output=True, text=True, timeout=30
+        cmd, capture_output=True, text=True, timeout=30
     )
     if r.returncode != 0:
         print(f"DORIS ERROR (db={db}): {r.stderr.strip()}")
@@ -30,9 +32,11 @@ def run_doris(sql, db=None):
 def run_doris_file(sql_path, db=None):
     if db is None:
         db = DB_A
+    cmd = get_mysql_cmd("prod")
+    cmd.append(db)
     with open(sql_path) as f:
         r = subprocess.run(
-            DORIS + [db], stdin=f, capture_output=True, text=True, timeout=120
+            cmd, stdin=f, capture_output=True, text=True, timeout=120
         )
     if r.returncode != 0:
         print(f"DORIS FILE ERROR (db={db}): {r.stderr.strip()}")

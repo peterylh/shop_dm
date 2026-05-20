@@ -18,25 +18,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from config import get_mysql_cmd
+
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import ErrorLevel
-
-# ============================================================
-# 连接配置
-# ============================================================
-
-DORIS = ["mysql", "-h172.16.0.90", "-P9030", "-uroot"]
 
 # ============================================================
 # SQL 执行
 # ============================================================
 
 
-def run_sql(sql: str, db: str = "") -> str:
+def run_sql(sql: str, db: str = "", qa: bool = False) -> str:
     """执行单条 SQL, 返回 stdout."""
+    cmd = get_mysql_cmd("prod", qa=qa)
+    if db:
+        cmd.append(db)
+    cmd.extend(["-e", sql])
     r = subprocess.run(
-        DORIS + [db, "-e", sql],
+        cmd,
         capture_output=True, text=True, timeout=300,
     )
     if r.returncode != 0:
@@ -45,10 +45,13 @@ def run_sql(sql: str, db: str = "") -> str:
     return r.stdout
 
 
-def run_sql_text(sql_text: str, db: str = "") -> str:
+def run_sql_text(sql_text: str, db: str = "", qa: bool = False) -> str:
     """通过 stdin 传入多语句 SQL 文本."""
+    cmd = get_mysql_cmd("prod", qa=qa)
+    if db:
+        cmd.append(db)
     r = subprocess.run(
-        DORIS + [db],
+        cmd,
         input=sql_text, capture_output=True, text=True, timeout=300,
     )
     if r.returncode != 0:
@@ -160,8 +163,8 @@ def main():
     # ── Phase 0: 重置验证库 ──
     print("=" * 60)
     print(f"Phase 0: 重置验证数据库 {qa_db}")
-    run_sql(f"DROP DATABASE IF EXISTS {qa_db}", "information_schema")
-    run_sql(f"CREATE DATABASE {qa_db}", "information_schema")
+    run_sql(f"DROP DATABASE IF EXISTS {qa_db}", "information_schema", qa=True)
+    run_sql(f"CREATE DATABASE {qa_db}", "information_schema", qa=True)
     print(f"  {qa_db} 已重建")
 
     # ── Phase 1: 基线建表 ──
@@ -174,7 +177,7 @@ def main():
             continue
         ddl_qa = ddl_raw.replace(f"{prod_db}.", f"{qa_db}.")
         try:
-            run_sql(ddl_qa, qa_db)
+            run_sql(ddl_qa, qa_db, qa=True)
             print(f"  [CREATE] {qa_db}.{tname}")
         except Exception as e:
             print(f"  [FAIL] {qa_db}.{tname}: {e}")
@@ -190,7 +193,7 @@ def main():
                 continue
             sql_qa = sql.replace(f"{prod_db}.", f"{qa_db}.")
             try:
-                run_sql(sql_qa, qa_db)
+                run_sql(sql_qa, qa_db, qa=True)
                 print(f"  [{ch.get('change_type')}] {ch.get('table_name', '?')}")
             except Exception as e:
                 print(f"  [SKIP] {ch.get('change_type')}: {e}")
@@ -223,7 +226,7 @@ def main():
             rewritten = f"SET @etl_date = '{etl_date}';\n" + rewritten
 
         try:
-            run_sql_text(rewritten, qa_db)
+            run_sql_text(rewritten, qa_db, qa=True)
             print(f"  + {qa_db}.{jname}")
         except Exception as e:
             print(f"  [FAIL] {jname}: {e}")

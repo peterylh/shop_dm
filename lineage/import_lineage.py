@@ -7,31 +7,30 @@ olist → olist_lineage
 DDL 执行 (首次) 需要先跑 lineage/ddl/*.sql
 """
 
-import json, argparse
+import json, argparse, sys
 from pathlib import Path
 import pymysql
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from config import PROJECT_CONFIG, DORIS_HOST, DORIS_PORT, DORIS_USER
+
 PROJECT_DIR = Path(__file__).parent.parent
-PROJECT_MAP = {
-    "shop": {"dir": "shop", "db": "shop_dm", "lineage_db": "shop_lineage"},
-    "olist": {"dir": "olist", "db": "olist_dm", "lineage_db": "olist_lineage"},
-}
 
 parser = argparse.ArgumentParser(
     description="将 lineage_data_{project}.json 导入对应该项目的 lineage 库"
 )
-parser.add_argument("--project", default="shop", choices=list(PROJECT_MAP.keys()),
+parser.add_argument("--project", default="shop", choices=list(PROJECT_CONFIG.keys()),
                     help="项目名称")
 args = parser.parse_args()
 
-cfg = PROJECT_MAP[args.project]
+cfg = PROJECT_CONFIG[args.project]
 TASKS_DIR = PROJECT_DIR / cfg["dir"] / "tasks"
 JSON_PATH = Path(__file__).parent / f"lineage_data_{args.project}.json"
 
 conn = pymysql.connect(
-    host="172.16.0.90",
-    port=9030,
-    user="root",
+    host=DORIS_HOST,
+    port=int(DORIS_PORT),
+    user=DORIS_USER,
     database=cfg["lineage_db"],
     charset="utf8mb4",
 )
@@ -62,7 +61,7 @@ print("   已清空 7 张表")
 print("1. 插入数据源...")
 cursor.execute(
     "INSERT INTO datasource (id, name, db_type, host) VALUES (1, %s, %s, %s)",
-    (cfg["db"], "starrocks", "172.16.0.90:9030"),
+    (cfg["db"], "starrocks", f"{DORIS_HOST}:{DORIS_PORT}"),
 )
 conn.commit()
 

@@ -5,15 +5,20 @@
 支持: shop(默认) / olist 项目
 """
 
-import json, re, argparse
+import json, re, argparse, sys
 from pathlib import Path
 from collections import OrderedDict
 import sqlglot
 from sqlglot import exp
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from config import PROJECT_CONFIG
+
 CURRENT_DB = "shop_dm"
 
 LINEAGE_DIR = Path(__file__).parent
+
+PROJECT_DIR = Path(__file__).parent.parent
 
 PROJECT_MAP = {
     "shop": {

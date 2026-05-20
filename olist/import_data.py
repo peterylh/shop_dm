@@ -8,14 +8,14 @@ Olist 数据导入脚本
 import csv, os, sys, time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from config import DORIS_HOST, DORIS_HTTP_PORT, DORIS_USER, PROJECT_CONFIG
+
 OLIST_DIR = Path(__file__).parent
 DATA_DIR = OLIST_DIR / "data"
 
 # Doris Stream Load 配置
-DORIS_HOST = "172.16.0.90"
-DORIS_PORT = 8030
-DORIS_DB = "olist_dm"
-DORIS_USER = "root"
+DORIS_DB = PROJECT_CONFIG["olist"]["db"]
 
 # CSV -> ODS 表映射
 CSV_TABLE_MAP = {
@@ -33,7 +33,7 @@ CSV_TABLE_MAP = {
 
 def stream_load(csv_path, table_name):
     """使用 Doris Stream Load 导入 CSV 数据"""
-    url = f"http://{DORIS_HOST}:{DORIS_PORT}/api/{DORIS_DB}/{table_name}/_stream_load"
+    url = f"http://{DORIS_HOST}:{DORIS_HTTP_PORT}/api/{DORIS_DB}/{table_name}/_stream_load"
     header = f"label:import_{table_name}_{int(time.time())}"
     cmd = (
         f"curl -s --location-trusted -u {DORIS_USER}: "

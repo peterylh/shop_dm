@@ -12,7 +12,7 @@
 ## 技术栈
 
 - **血缘提取**: sqlglot提供了 lineage 方法
-- **环境配置**: 见 [dbenv.md](./dbenv.md)
+- **环境配置**: 见 [config.py](./config.py)
 
 ## 目录结构
 
@@ -63,6 +63,9 @@ shop-dm/
 │   ├── lineage_data.json    # 血缘中间数据
 │   ├── lineage.html         # 表/列级血缘可视化
 │   └── lineage_job.html     # 作业级血缘可视化
+├── exec/                    # 作业执行与初始化工具
+│   ├── reinit_project.py    # 数据重新初始化脚本 (清空表 -> ODS初始化 -> 重算DAG)
+│   └── task_run.py          # 按 DAG 依赖顺序执行 ETL 作业
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py          # 共享 fixture
@@ -86,13 +89,14 @@ shop-dm/
 
 ## 库名映射规范
 
-生产和测试环境的库名:
-- shop 项目: 库名前缀 `shop_dm.`
-- olist 项目: 库名前缀 `olist_dm.`
+每个数据集市项目在同一环境中拥有两个库:
 
-验证环境的验证库名:
-- shop 项目: 库名前缀 `shop_dm_qa.`
-- olist 项目: 库名前缀 `olist_dm_qa.`
+| 项目 | 生产库 (db) | 验证库 (qa_db) |
+|------|-------------|----------------|
+| shop | `shop_dm` | `shop_dm_qa` |
+| olist | `olist_dm` | `olist_dm_qa` |
+
+验证库用于重构验证: verify_run 读取生产库, 写入验证库, 不复制数据。
 
 ## 分层命名规范
 

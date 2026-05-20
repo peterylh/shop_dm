@@ -10,7 +10,6 @@
 
 用法:
     python exec/reinit_project.py --project shop
-    python exec/reinit_project.py --project shop --db-env qa
 """
 
 import argparse, subprocess, sys
@@ -19,13 +18,7 @@ from pathlib import Path
 _root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_root))
 
-from lineage.lineage_extractor import PROJECT_CONFIG
-
-DB_ENV_CONFIG = {
-    "prod": ["mysql", "-h172.16.0.90", "-P9030", "-uroot"],
-    "test": ["mysql", "-h172.16.0.90", "-P9034", "-uroot"],
-    "qa":   ["mysql", "-h172.16.0.90", "-P9030", "-uqa"],
-}
+from config import PROJECT_CONFIG, DB_ENV_CONFIG, get_mysql_cmd
 
 
 def run_sql(sql_text: str, db: str, env_cmd: list[str]) -> str:
@@ -59,9 +52,10 @@ def main():
     args = parser.parse_args()
 
     project = args.project
-    env_cmd = DB_ENV_CONFIG[args.db_env]
-    db_name = PROJECT_CONFIG[project]["db"]
-    data_dir = _root / PROJECT_CONFIG[project]["dir"] / "data"
+    env_cmd = get_mysql_cmd(args.db_env)
+    cfg = PROJECT_CONFIG[project]
+    db_name = cfg["db"]
+    data_dir = _root / cfg["dir"] / "data"
 
     print(f"项目: {project}")
     print(f"数据库: {db_name}")

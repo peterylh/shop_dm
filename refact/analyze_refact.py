@@ -25,18 +25,11 @@ from ddl_deriver.ddl_deriver import (
     changes_to_json,
 )
 
+from config import PROJECT_CONFIG, DORIS_HOST, DORIS_PORT, DORIS_USER
+
 # ============================================================
 # 环境配置
 # ============================================================
-
-DORIS_HOST = "172.16.0.90"
-DORIS_PORT = "9030"
-DORIS_USER = "root"
-
-PROJECT_MAP = {
-    "shop": {"project_db": "shop_dm", "qa_db": "shop_dm_qa", "dir": "shop"},
-    "olist": {"project_db": "olist_dm", "qa_db": "olist_dm_qa", "dir": "olist"},
-}
 
 _LAYER_PREFIX = {"ods_": "ODS", "dwd_": "DWD", "dws_": "DWS", "ads_": "ADS"}
 
@@ -106,7 +99,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="重构分析: 检测变更 + 血缘追踪 + 锚点发现 + 分区选择"
     )
-    parser.add_argument("--project", default="shop", choices=list(PROJECT_MAP))
+    parser.add_argument("--project", default="shop", choices=list(PROJECT_CONFIG.keys()))
     parser.add_argument("--output", default=None,
                         help="元数据路径 (默认 refact/refact_metadata.json)")
     parser.add_argument("--partition", default=None, help="手工指定分区")
@@ -115,7 +108,9 @@ def main():
     parser.add_argument("--base-branch", default="main", help="Git 基线分支")
     args = parser.parse_args()
 
-    cfg = PROJECT_MAP[args.project]
+    cfg = PROJECT_CONFIG[args.project]
+    project_db = cfg["db"]
+    qa_db = cfg["qa_db"]
     root = Path(__file__).resolve().parent.parent
     ddl_rel = f"{cfg['dir']}/ddl"
     tasks_dir = root / cfg["dir"] / "tasks"
@@ -213,7 +208,7 @@ def main():
             pc = get_partition_col(a, determine_layer(a), baseline_ddl)
             try:
                 val = run_doris(
-                    f"SELECT MAX({pc}) FROM {cfg['project_db']}.{a}"
+                    f"SELECT MAX({pc}) FROM {project_db}.{a}"
                 )
                 if val and val != "NULL":
                     per_table[a] = {"partition_col": pc, "value": val}
@@ -289,8 +284,8 @@ def main():
     # ── 输出 ──
     meta = {
         "project": args.project,
-        "project_db": cfg["project_db"],
-        "qa_db": cfg["qa_db"],
+        "project_db": project_db,
+        "qa_db": qa_db,
         "host": DORIS_HOST,
         "port": int(DORIS_PORT),
         "git": {
