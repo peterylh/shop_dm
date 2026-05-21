@@ -81,21 +81,10 @@ def build_schema_from_ddl(ddl_dir):
 # 2. Layer 推断
 # ============================================================
 
-_SHORT_LAYER = {
-    "ods_": "ODS",
-    "dwd_": "DWD",
-    "dws_": "DWS",
-    "ads_": "ADS",
-    "dim_": "DIM",
-}
-
-
 def determine_layer(table_name):
+    from config import get_naming_config
     short = _strip_db(table_name)
-    for prefix, layer in _SHORT_LAYER.items():
-        if short.startswith(prefix):
-            return layer
-    return "OTHER"
+    return get_naming_config().determine_layer(short)
 
 
 # ============================================================

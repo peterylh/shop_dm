@@ -36,8 +36,11 @@ DEFAULT_WEIGHTS = {
     "naming": 0.25,
 }
 
-# 分层序号 (越大越靠上层)
-LAYER_RANK = {"ODS": 0, "DWD": 1, "DWS": 2, "ADS": 3}
+# 从命名规范配置获取分层序号
+from config import get_naming_config
+_nc = get_naming_config()
+def _layer_rank(layer: str) -> int:
+    return _nc.layer_rank(layer)
 
 # 依赖违规定义: 通过 src/tgt 层序号差自动判定
 # rank_diff = src_rank - tgt_rank
@@ -195,14 +198,10 @@ def score_lineage_depth(tables: list, edges: list, indirect_edges: list) -> dict
     upstream, _ = build_table_graph(edges, indirect_edges)
 
     # 补齐上游中可能缺失的层信息（按表名前缀推断）
+    _inf_nc = _nc
     for tbl in upstream:
         if tbl not in table_layers:
-            for prefix, layer in [("ads_", "ADS"), ("dws_", "DWS"), ("dwd_", "DWD"), ("ods_", "ODS")]:
-                if tbl.startswith(prefix):
-                    table_layers[tbl] = layer
-                    break
-            else:
-                table_layers[tbl] = "OTHER"
+            table_layers[tbl] = _inf_nc.determine_layer(tbl)
 
     ads = [t for t in tables if t["layer"] == "ADS"]
 
@@ -246,8 +245,8 @@ def score_dependency_health(tables: list, edges: list, indirect_edges: list) -> 
     for (src, tgt), files in table_edges.items():
         src_layer = table_layers.get(src, "OTHER")
         tgt_layer = table_layers.get(tgt, "OTHER")
-        src_rank = LAYER_RANK.get(src_layer, -1)
-        tgt_rank = LAYER_RANK.get(tgt_layer, -1)
+        src_rank = _layer_rank(src_layer)
+        tgt_rank = _layer_rank(tgt_layer)
         if src_rank < 0 or tgt_rank < 0:
             continue
 
@@ -289,49 +288,48 @@ def score_dependency_health(tables: list, edges: list, indirect_edges: list) -> 
 # 命名规范评分
 # ============================================================
 
-# 命名模式列表: (描述, 检查函数)
-# 每个字段只要匹配任意一个模式即视为合规
-COLUMN_PATTERNS = [
-    ("主键/外键 _id", lambda c: c.endswith("_id") or c == "id"),
-    ("日期字段 _date", lambda c: c.endswith("_date")),
-    ("时间字段 _time", lambda c: c.endswith("_time")),
-    ("金额字段 _amount", lambda c: c.endswith("_amount")),
-    ("金额字段 _price", lambda c: c.endswith("_price")),
-    ("金额字段 _cost", lambda c: c.endswith("_cost")),
-    ("金额字段 subtotal/discount", lambda c: c in ("subtotal", "discount")),
-    ("统计字段 _count", lambda c: c.endswith("_count")),
-    ("数量字段 quantity", lambda c: c.endswith("_quantity") or c == "quantity"),
-    ("标志字段 is_", lambda c: c.startswith("is_")),
-    ("等级字段 _level", lambda c: c.endswith("_level")),
-    ("类型字段 _type", lambda c: c.endswith("_type")),
-    ("名称字段 _name", lambda c: c.endswith("_name")),
-    ("评分字段 _score", lambda c: c.endswith("_score")),
-    ("排名字段 _num", lambda c: c.endswith("_num") or c == "rank_num"),
-    ("方法字段 _method", lambda c: c.endswith("_method")),
-    ("状态字段 _status", lambda c: c.endswith("_status")),
-    ("分段字段 _segment", lambda c: c.endswith("_segment")),
-    ("ETL元数据字段", lambda c: c in ("etl_time", "snapshot_date", "create_time", "update_time")),
-]
+# 从命名规范配置生成命名检查规则
+_nc_col = get_naming_config()
 
 TABLE_NAME_CHECKS = [
-    ("表名前缀匹配分层", lambda name, layer: name.startswith(layer.lower() + "_")),
+    ("表名前缀匹配分层",
+     lambda name, layer: name.startswith(_nc_col.layers[layer].prefix)),
     ("表名全小写下划线", lambda name, _: bool(re.match(r"^[a-z][a-z0-9_]*$", name))),
     ("表名不含中文", lambda name, _: not bool(re.search(r"[\u4e00-\u9fff]", name))),
 ]
 
-# 已知通用列名白名单 (不计入违规)
-COMMON_COLUMNS = {
-    "etl_time", "snapshot_date", "create_time", "update_time",
-}
+COMMON_COLUMNS = _nc_col.common_columns
 
 
 def _check_column_name(col_name: str) -> tuple[bool, list[str]]:
     if col_name in COMMON_COLUMNS:
-        return True, []
+        return True, ["通用列名"]
+
+    # OR 匹配：字段只要匹配任意一个已知后缀/前缀模式即合规
     matched = []
-    for desc, fn in COLUMN_PATTERNS:
-        if fn(col_name):
-            matched.append(desc)
+    sf = _nc_col.types.get("suffix_field")
+    if sf and sf.values:
+        for v in sorted(sf.values, key=len, reverse=True):
+            if col_name.endswith(f"_{v}"):
+                matched.append(f"后缀 _{v}")
+                break
+    if not matched:
+        pf = _nc_col.types.get("prefix_field")
+        if pf and pf.values:
+            for v in sorted(pf.values, key=len, reverse=True):
+                if col_name.startswith(f"{v}_"):
+                    matched.append(f"前缀 {v}_")
+                    break
+
+    # 额外特殊列名
+    extra = {
+        "subtotal": "金额字段 subtotal/discount",
+        "discount": "金额字段 subtotal/discount",
+        "rank_num": "排名字段 rank_num",
+    }
+    if col_name in extra:
+        matched.append(extra[col_name])
+
     return bool(matched), matched
 
 
@@ -341,8 +339,7 @@ def score_naming_conventions(tables: list) -> dict:
     table_results = []
     total_checks = 0
     total_passed = 0
-    # 按规则汇总
-    rule_counter = defaultdict(lambda: dict(pass_count=0, total=0))
+    pass  # placeholder
 
     for t in middle:
         name = t["name"]
@@ -354,10 +351,8 @@ def score_naming_conventions(tables: list) -> dict:
         tbl_total = len(TABLE_NAME_CHECKS)
         tbl_violations = []
         for desc, fn in TABLE_NAME_CHECKS:
-            rule_counter[desc]["total"] += 1
             if fn(name, layer):
                 tbl_passed += 1
-                rule_counter[desc]["pass_count"] += 1
             else:
                 tbl_violations.append(f"违反: {desc}")
 
@@ -373,20 +368,7 @@ def score_naming_conventions(tables: list) -> dict:
                 col_passed += 1
             else:
                 col_violations.append(col_name)
-            # 按规则统计
-            for desc in matched if ok else []:
-                rule_counter[desc]["pass_count"] += 1
-                rule_counter[desc]["total"] += 1
-            if not ok:
-                # 每条不匹配的字段对未命中的规则也计入 total
-                for desc, _ in COLUMN_PATTERNS:
-                    pass_count = rule_counter[desc]["pass_count"]
-                    rule_counter[desc]["total"] += 1
-                    # 恢复被不小心增加的 pass_count
-                    # 不对，这里逻辑有问题，让我重新想
-
-        # 重新设计规则统计
-        # 这里不在这层处理，放到最后统一计算
+            pass
 
         table_pass = tbl_passed + col_passed
         table_check = tbl_total + col_total
@@ -411,7 +393,7 @@ def score_naming_conventions(tables: list) -> dict:
 
     overall = round(total_passed / total_checks * 100, 1) if total_checks else 100.0
 
-    # 规则汇总: 统计每个模式命中了几次
+    # 规则汇总
     rule_summary = {}
     for desc, fn in TABLE_NAME_CHECKS:
         passed = sum(1 for t in middle if fn(t["name"], t["layer"]))
@@ -421,19 +403,31 @@ def score_naming_conventions(tables: list) -> dict:
             pct=round(passed / total * 100, 1) if total else 0,
         )
 
-    for desc, fn in COLUMN_PATTERNS:
-        total = 0
-        passed = 0
-        for t in middle:
-            for col in t.get("columns", []):
-                col_name = col["name"]
-                if col_name in COMMON_COLUMNS:
-                    continue
-                total += 1
-                if fn(col_name):
-                    passed += 1
-        pct = round(passed / total * 100, 1) if total else 0
-        rule_summary[desc] = dict(pass_count=passed, total=total, pct=pct)
+    col_total = 0
+    col_passed = 0
+    for t in middle:
+        for col in t.get("columns", []):
+            col_name = col["name"]
+            col_total += 1
+            ok, matched = _check_column_name(col_name)
+            if ok:
+                col_passed += 1
+            for m in matched:
+                if m not in rule_summary:
+                    rule_summary[m] = {"pass_count": 0, "total": 0}
+                rule_summary[m]["pass_count"] += 1
+                rule_summary[m]["total"] += 1
+            if not ok:
+                rule_summary.setdefault("无匹配模式", {"pass_count": 0, "total": 0})
+                rule_summary["无匹配模式"]["total"] += 1
+    for k, v in rule_summary.items():
+        if v["total"]:
+            v["pct"] = round(v["pass_count"] / v["total"] * 100, 1)
+    # 确保 col 总结显示
+    pct = round(col_passed / col_total * 100, 1) if col_total else 0
+    rule_summary["列名总计"] = dict(
+        pass_count=col_passed, total=col_total, pct=pct,
+    )
 
     return dict(score=overall, details=table_results, rule_summary=rule_summary)
 

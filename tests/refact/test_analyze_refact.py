@@ -32,7 +32,11 @@ def test_determine_layer_ads():
 
 def test_determine_layer_other():
     assert determine_layer("unknown_table") == "OTHER"
-    assert determine_layer("dim_date") == "OTHER"
+    assert determine_layer("") == "OTHER"
+
+def test_determine_layer_dim():
+    assert determine_layer("dim_date") == "DIM"
+    assert determine_layer("dim_store") == "DIM"
 
 
 # ============================================================

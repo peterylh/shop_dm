@@ -33,7 +33,10 @@ def run_sql(sql_text: str, db: str, env_cmd: list[str]) -> str:
 def get_etl_date_partitions(db: str, env_cmd: list[str]) -> list[str]:
     result = run_sql("SHOW TABLES", db, env_cmd)
     tables = [line.strip() for line in result.strip().split("\n")[1:] if line.strip()]
-    ods_tables = [t for t in tables if t.startswith("ods_")]
+    from config import get_naming_config
+    _nc = get_naming_config()
+    _ods_prefix = _nc.layers["ODS"].prefix
+    ods_tables = [t for t in tables if t.startswith(_ods_prefix)]
     all_dates = set()
     for tbl in ods_tables:
         result = run_sql(
@@ -73,12 +76,13 @@ def main():
     if not tables:
         print("  数据库中无表, 跳过清空步骤")
     else:
-        layer_order = {"ads_": 0, "dws_": 1, "dwd_": 2, "ods_": 3}
+        from config import get_naming_config
+        nc = get_naming_config()
 
         def sort_key(t):
-            for prefix, order in layer_order.items():
-                if t.startswith(prefix):
-                    return order
+            for layer_name in reversed(nc.layer_order):
+                if t.startswith(nc.layers[layer_name].prefix):
+                    return nc.layers[layer_name].rank
             return 4
 
         for t in sorted(tables, key=sort_key, reverse=True):

@@ -31,17 +31,13 @@ from config import PROJECT_CONFIG, DORIS_HOST, DORIS_PORT, DORIS_USER
 # 环境配置
 # ============================================================
 
-_LAYER_PREFIX = {"ods_": "ODS", "dwd_": "DWD", "dws_": "DWS", "ads_": "ADS"}
-
 # ============================================================
 # 辅助函数
 # ============================================================
 
 def determine_layer(table_name: str) -> str:
-    for prefix, layer in _LAYER_PREFIX.items():
-        if table_name.startswith(prefix):
-            return layer
-    return "OTHER"
+    from config import get_naming_config
+    return get_naming_config().determine_layer(table_name)
 
 
 def parse_partition_col_from_ddl(ddl_text: str) -> str:
@@ -266,7 +262,9 @@ def main():
     try:
         jobs_sorted = dag.topological_sort(jobs_set)
     except ValueError:
-        jobs_sorted = sorted(jobs_set, key=lambda j: {"dwd_": 1, "dws_": 2, "ads_": 3}.get(j[:4], 4))
+        from config import get_naming_config
+        nc = get_naming_config()
+        jobs_sorted = sorted(jobs_set, key=lambda j: next((nc.layers[l].rank for l in nc.layer_order if j.startswith(nc.layers[l].prefix)), 4))
 
     jobs_to_run = []
     for jn in jobs_sorted:

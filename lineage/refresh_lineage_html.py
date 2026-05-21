@@ -69,15 +69,11 @@ def load_lineage_data(project="shop"):
 
 
 def _layer_priority(tbl):
-    if tbl.startswith("ads_"):
-        return 4
-    if tbl.startswith("dws_"):
-        return 3
-    if tbl.startswith("dwd_"):
-        return 2
-    if tbl.startswith("ods_"):
-        return 1
-    return 0
+    from config import get_naming_config
+    nc = get_naming_config()
+    layer = nc.determine_layer(tbl)
+    rank = nc.layer_rank(layer)
+    return rank + 1 if rank >= 0 else 0
 
 
 def _strip_db(name):
@@ -117,15 +113,8 @@ def generate_jobs(data, cfg=None):
         sources.discard(main_target)
 
         short = _strip_db(main_target)
-        layer = "OTHER"
-        if short.startswith("ods_"):
-            layer = "ODS"
-        elif short.startswith("dwd_"):
-            layer = "DWD"
-        elif short.startswith("dws_"):
-            layer = "DWS"
-        elif short.startswith("ads_"):
-            layer = "ADS"
+        from config import get_naming_config
+        layer = get_naming_config().determine_layer(short)
 
         jobs.append(
             OrderedDict(
