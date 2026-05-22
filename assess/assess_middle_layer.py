@@ -312,10 +312,8 @@ def score_dependency_health(tables: list, edges: list,
 _nc_col = get_naming_config()
 
 TABLE_NAME_CHECKS = [
-    ("表名前缀匹配分层",
-     lambda name, layer: name.startswith(_nc_col.layers[layer].prefix)),
-    ("表名全小写下划线", lambda name, _: bool(re.match(r"^[a-z][a-z0-9_]*$", name))),
-    ("表名不含中文", lambda name, _: not bool(re.search(r"[\u4e00-\u9fff]", name))),
+    ("表名符合规范模板",
+     lambda name, layer: _nc_col._match_segments(name, _nc_col.layers[layer].segments) is not None if layer in _nc_col.layers else False),
 ]
 
 COMMON_COLUMNS = _nc_col.common_columns
