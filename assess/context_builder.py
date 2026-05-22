@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass
@@ -8,7 +7,6 @@ from dataclasses import dataclass
 class TableContext:
     table_name: str
     layer: str
-    columns: list[dict]
     ddl: str
     etl_sql: str
     upstream_tables: list[str]
@@ -91,7 +89,6 @@ def build_contexts(project: str,
         contexts.append(
             TableContext(table_name=name,
                          layer=layer,
-                         columns=table.get("columns", []),
                          ddl=ddl_content,
                          etl_sql=etl_content,
                          upstream_tables=sorted(list(upstream.get(name,

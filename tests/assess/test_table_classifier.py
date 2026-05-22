@@ -1,11 +1,10 @@
 import json
 import pytest
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch
 
 from assess.table_classifier import (
     TableClassifier,
     TableContext,
-    ClassifyResult,
     build_prompt,
     parse_response
 )
@@ -19,7 +18,6 @@ def test_build_prompt_includes_all_info():
     ctx = TableContext(
         table_name="dwd_customer",
         layer="DWD",
-        columns=[{"name": "id", "type": "BIGINT"}],
         ddl="CREATE TABLE dwd_customer (id BIGINT);",
         etl_sql="INSERT INTO dwd_customer SELECT id FROM ods_customer;",
         upstream_tables=["ods_customer"],
@@ -38,7 +36,6 @@ def test_build_prompt_without_etl():
     ctx = TableContext(
         table_name="dwd_customer",
         layer="DWD",
-        columns=[],
         ddl="CREATE TABLE dwd_customer;",
         etl_sql="",
         upstream_tables=[],
@@ -128,7 +125,7 @@ def test_cache_hit_skips_api(tmp_path):
     classifier = TableClassifier(api_key="test", cache_file=cache_file)
     
     ctx = TableContext(
-        table_name="t1", layer="DWD", columns=[],
+        table_name="t1", layer="DWD",
         ddl="ddl1", etl_sql="etl1", upstream_tables=[], downstream_tables=[]
     )
     
@@ -156,7 +153,7 @@ def test_cache_miss_calls_api(tmp_path, monkeypatch):
     classifier = TableClassifier(api_key="test", cache_file=cache_file)
     
     ctx = TableContext(
-        table_name="t1", layer="DWD", columns=[],
+        table_name="t1", layer="DWD",
         ddl="ddl_new", etl_sql="etl1", upstream_tables=[], downstream_tables=[]
     )
     
@@ -183,7 +180,7 @@ def test_cache_miss_calls_api(tmp_path, monkeypatch):
 # ============================================================
 
 @pytest.mark.api
-def test_classify_dimension_table(monkeypatch):
+def test_classify_dimension_table():
     import os
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
@@ -195,7 +192,6 @@ def test_classify_dimension_table(monkeypatch):
     ctx = TableContext(
         table_name="dwd_customer",
         layer="DWD",
-        columns=[],
         ddl=DDL_DWD_CUSTOMER,
         etl_sql=ETL_DWD_CUSTOMER,
         upstream_tables=["ods_customer"],
@@ -209,7 +205,7 @@ def test_classify_dimension_table(monkeypatch):
 
 
 @pytest.mark.api
-def test_classify_fact_table(monkeypatch):
+def test_classify_fact_table():
     import os
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
@@ -221,7 +217,6 @@ def test_classify_fact_table(monkeypatch):
     ctx = TableContext(
         table_name="dwd_order_detail",
         layer="DWD",
-        columns=[],
         ddl=DDL_DWD_ORDER_DETAIL,
         etl_sql=ETL_DWD_ORDER_DETAIL,
         upstream_tables=["ods_order", "ods_order_item", "ods_product"],
