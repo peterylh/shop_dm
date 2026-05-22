@@ -46,7 +46,7 @@ def test_build_prompt_without_etl():
     )
     prompt = build_prompt(ctx)
     assert "dwd_customer" in prompt
-    assert "ETL 加工逻辑" not in prompt
+    assert "## ETL 加工逻辑" not in prompt
 
 
 # ============================================================
@@ -57,7 +57,7 @@ def test_parse_dimension_response():
     resp = {
         "choices": [{
             "message": {
-                "content": '{"table_type": "dimension", "confidence": 0.9, "reason": "test"}'
+                "content": '{"table_type": "dimension", "confidence": 0.9, "reasoning_steps": ["test"]}'
             }
         }]
     }
@@ -65,7 +65,7 @@ def test_parse_dimension_response():
     assert result.table_name == "dwd_customer"
     assert result.table_type == "dimension"
     assert result.confidence == 0.9
-    assert result.reason == "test"
+    assert result.reasoning_steps == ["test"]
 
 
 def test_parse_fact_response():
@@ -116,7 +116,7 @@ def test_parse_malformed_response():
     result = parse_response("t1", resp)
     assert result.table_type == "other"
     assert result.confidence == 0.0
-    assert "JSON 解析失败" in result.reason
+    assert "JSON 解析失败" in result.reasoning_steps[0]
 
 
 # ============================================================
@@ -136,7 +136,7 @@ def test_cache_hit_skips_api(tmp_path):
     cache_data = {
         "t1": {
             "hash": classifier._compute_hash(ctx),
-            "result": {"table_name": "t1", "table_type": "dimension", "confidence": 0.9, "reason": "cached"}
+            "result": {"table_name": "t1", "table_type": "dimension", "confidence": 0.9, "reasoning_steps": ["cached"]}
         }
     }
     cache_file.write_text(json.dumps(cache_data))
@@ -148,7 +148,7 @@ def test_cache_hit_skips_api(tmp_path):
         res = classifier.classify(ctx)
         mock_api.assert_not_called()
         assert res.table_type == "dimension"
-        assert res.reason == "cached"
+        assert res.reasoning_steps == ["cached"]
 
 
 def test_cache_miss_calls_api(tmp_path, monkeypatch):
@@ -161,8 +161,13 @@ def test_cache_miss_calls_api(tmp_path, monkeypatch):
     )
     
     # mock _call_api
-    mock_resp = {"table_type": "fact", "confidence": 0.8, "reason": "api"}
-    monkeypatch.setattr(classifier, '_call_api', lambda p: '{"table_type": "fact", "confidence": 0.8, "reason": "api"}')
+    monkeypatch.setattr(classifier, '_call_api', lambda p: json.dumps({
+        "choices": [{
+            "message": {
+                "content": '{"table_type": "fact", "confidence": 0.8, "reasoning_steps": ["api"]}'
+            }
+        }]
+    }))
     
     res = classifier.classify(ctx)
     assert res.table_type == "fact"
