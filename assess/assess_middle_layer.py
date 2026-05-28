@@ -45,17 +45,10 @@ DEFAULT_WEIGHTS = {
     "naming": 0.25,
 }
 
-# 架构合理性展示分采用分段线性映射:
-# - 保持单调
-# - 高分段更敏感
-# - 避免 90->60 这类过于激进的硬映射
-ARCH_DISPLAY_POINTS = [
-    (0.0, 0.0),
-    (60.0, 30.0),
-    (80.0, 55.0),
-    (95.0, 85.0),
-    (100.0, 100.0),
-]
+# 加权违规率配置: 严重度 → 权重
+SEVERITY_WEIGHT = {"严重": 4, "高": 3, "中": 2, "低": 1}
+# 每表扣分上限 (cap)，防止单张高频表拖垮整体评分
+PER_TABLE_CAP = 4
 
 # 从命名规范配置获取分层序号
 from config import get_naming_config
@@ -65,28 +58,6 @@ _nc = get_naming_config()
 
 def _layer_rank(layer: str) -> int:
     return _nc.layer_rank(layer)
-
-
-def _piecewise_linear_map(score: float,
-                          points: list[tuple[float, float]]) -> float:
-    if not points:
-        return round(score, 1)
-    if score <= points[0][0]:
-        return round(points[0][1], 1)
-    if score >= points[-1][0]:
-        return round(points[-1][1], 1)
-
-    for (x0, y0), (x1, y1) in zip(points, points[1:]):
-        if x0 <= score <= x1:
-            if x1 == x0:
-                return round(y1, 1)
-            ratio = (score - x0) / (x1 - x0)
-            return round(y0 + ratio * (y1 - y0), 1)
-    return round(score, 1)
-
-
-def map_architecture_display(raw_score: float) -> float:
-    return _piecewise_linear_map(raw_score, ARCH_DISPLAY_POINTS)
 
 
 def build_metric_result(metric: dict, display_score: float | None = None) -> dict:
@@ -291,6 +262,7 @@ def score_architecture_health(tables: list, edges: list,
                               indirect_edges: list,
                               llm_results: list = None) -> dict:
     table_layers = build_table_layer_map(tables)
+    table_count = len(tables)  # 全部表数 (ODS+DWD+DWS+DIM+ADS)
 
     # 收集表级边 (去重)
     table_edges = defaultdict(set)
@@ -306,9 +278,10 @@ def score_architecture_health(tables: list, edges: list,
             table_edges[(src, tgt)].add(ie.get("source_file", ""))
 
     violations = []
-    penalty_total = 0
+    # 每表累计权重 (cap 前)
+    table_weight = defaultdict(int)
 
-    # ---- 规则检测: 跨层/反向/跳层依赖 ----
+    # ---- 规则检测: 跨层/反向/跳层依赖 (归属 target 表) ----
     for (src, tgt), files in table_edges.items():
         src_layer = table_layers.get(src, "OTHER")
         tgt_layer = table_layers.get(tgt, "OTHER")
@@ -323,53 +296,66 @@ def score_architecture_health(tables: list, edges: list,
         if rank_diff == -1:
             continue
 
-        for diff, desc, severity, penalty in ARCH_VIOLATION_RULES:
+        for diff, desc, severity, _penalty in ARCH_VIOLATION_RULES:
             if rank_diff == diff:
+                weight = SEVERITY_WEIGHT[severity]
                 violations.append(
                     dict(
                         source=f"{src}({src_layer})",
                         target=f"{tgt}({tgt_layer})",
                         severity=severity,
-                        penalty=penalty,
+                        weight=weight,
                         description=desc,
                         source_file=", ".join(sorted(files)),
+                        belongs_to=tgt,
                     ))
-                penalty_total += penalty
+                table_weight[tgt] += weight
 
-    # ---- LLM 检测: 分层错配 & 维度表位置不当 ----
+    # ---- LLM 检测: 分层错配 & 维度表位置不当 (归属被评估表本身) ----
     if llm_results:
         cls_map = {r.table_name: r for r in llm_results}
         table_map = {t["name"]: t for t in tables}
         for name, res in cls_map.items():
             layer = table_map[name]["layer"] if name in table_map else "OTHER"
 
-            # 分层错配: 表名层 ≠ LLM 推断层
             if res.is_violating_current_name:
+                weight = SEVERITY_WEIGHT["中"]
                 violations.append(dict(
                     source=f"{name}({layer})",
                     target=f"{name}({res.inferred_layer})",
                     severity="中",
-                    penalty=10,
+                    weight=weight,
                     description=f"分层错配(LLM): 命名层={layer}, 推断层={res.inferred_layer}",
                     source_file="",
                     source_type="llm",
+                    belongs_to=name,
                 ))
-                penalty_total += 10
+                table_weight[name] += weight
 
-            # 维度表位置不当: 维度表放在 DWD 层而非 DIM
             if res.table_type == "dimension" and layer == "DWD":
+                weight = SEVERITY_WEIGHT["低"]
                 violations.append(dict(
                     source=f"{name}({layer})",
                     target="建议: DIM",
                     severity="低",
-                    penalty=5,
+                    weight=weight,
                     description="维度表位置不当(LLM): 维度表应置于 DIM 层",
                     source_file="",
                     source_type="llm",
+                    belongs_to=name,
                 ))
-                penalty_total += 5
+                table_weight[name] += weight
 
-    score = max(0, 100 - penalty_total)
+    # 每表扣分上限 (cap)
+    capped_total = 0
+    table_capped = {}
+    for tbl, w in table_weight.items():
+        capped = min(w, PER_TABLE_CAP)
+        table_capped[tbl] = capped
+        capped_total += capped
+
+    # 加权违规率评分
+    score = max(0, round(100 * (1 - capped_total / table_count), 1)) if table_count else 100.0
 
     summary = defaultdict(int)
     for v in violations:
@@ -377,7 +363,9 @@ def score_architecture_health(tables: list, edges: list,
 
     return dict(
         score=score,
-        total_penalty=penalty_total,
+        table_count=table_count,
+        capped_total=capped_total,
+        table_capped=table_capped,
         violation_summary=dict(summary),
         violations=violations,
     )
@@ -637,41 +625,48 @@ def generate_report(scores: dict, weights: dict, project: str) -> str:
     architecture = scores["architecture"]
     parts.append(f"\n{'=' * 62}")
     parts.append(
-        f"【架构合理性】评分(展示/原始): {architecture['display']} / {architecture['raw']}")
+        f"【架构合理性】评分: {architecture['display']}  |  合规率: {architecture['raw']}")
     parts.append(f"{'=' * 62}")
 
     # 按规则汇总
-    rule_groups = defaultdict(lambda: dict(label="", sev="", pen=0, count=0, has_llm=False))
+    rule_groups = defaultdict(lambda: dict(label="", sev="", weight=0, count=0, tables=set(), has_llm=False))
     for v in architecture["violations"]:
         key = v["description"]
         if key not in rule_groups:
             rule_groups[key] = dict(label=key,
                                     sev=v["severity"],
-                                    pen=v["penalty"],
+                                    weight=v["weight"],
                                     count=0,
+                                    tables=set(),
                                     has_llm=v.get("source_type") == "llm")
         rule_groups[key]["count"] += 1
+        rule_groups[key]["tables"].add(v["belongs_to"])
 
-    headers = ["违规类型", "严重度", "单次扣分", "次数", "扣分小计"]
-    col_w = [36, 8, 10, 6, 10]
+    headers = ["违规类型", "严重度", "权重", "次数", "涉及表"]
+    col_w = [36, 8, 6, 6, 30]
     rows = []
     for g in rule_groups.values():
-        sub = g["count"] * g["pen"]
         label = f"[LLM推断] {g['label']}" if g["has_llm"] else g["label"]
-        rows.append([label, g["sev"], str(g["pen"]), str(g["count"]), str(sub)])
+        tables_str = ", ".join(sorted(g["tables"]))
+        rows.append([label, g["sev"], str(g["weight"]), str(g["count"]), tables_str])
     if not rows:
         rows.append(["(无违规)", "", "", "", ""])
     parts.append(_fmt_table(headers, rows, col_w))
 
+    tc = architecture["table_count"]
+    ct = architecture["capped_total"]
+    compliance = max(0, round(100 * (1 - ct / tc), 1)) if tc else 100.0
     parts.append(
-        f"\n  累计扣分: {architecture['total_penalty']}  |  原始分: {architecture['raw']}  |  展示分: {architecture['display']}")
+        f"\n  Σ(每表 cap 后权重) = {ct}  |  总表数 = {tc}  |  合规率 = {compliance}  |  评分 = {architecture['raw']}")
 
     if architecture["violations"]:
-        parts.append(f"\n  违规详情:")
+        parts.append(f"\n  违规详情 (权重/cap后):")
         for v in architecture["violations"]:
             llm_tag = "[LLM推断] " if v.get("source_type") == "llm" else ""
+            capped = min(architecture["table_capped"].get(v["belongs_to"], 0), PER_TABLE_CAP)
             parts.append(
-                f"    ✗ {llm_tag}{v['source']} → {v['target']}  [{v['severity']}] {v['description']} ({v['source_file']})"
+                f"    ✗ {llm_tag}{v['source']} → {v['target']}  [{v['severity']}/{v['weight']}]  "
+                f"{v['description']}  (归属: {v['belongs_to']}, 该表 cap 后: {capped})"
             )
     else:
         parts.append(f"\n  无违规 ✓")
@@ -765,10 +760,7 @@ def assess(project: str = "shop",
         score_lineage_depth(tables, edges, indirect_edges))
     architecture_raw = score_architecture_health(tables, edges, indirect_edges,
                                                   llm_results)
-    architecture_score = build_metric_result(
-        architecture_raw,
-        display_score=map_architecture_display(architecture_raw["score"]),
-    )
+    architecture_score = build_metric_result(architecture_raw)
     naming_score = build_metric_result(score_naming_conventions(tables))
 
     overall_raw = round(

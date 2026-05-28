@@ -1,13 +1,4 @@
-from assess.assess_middle_layer import assess, generate_report, map_architecture_display
-
-
-def test_map_architecture_display_uses_piecewise_mapping():
-    assert map_architecture_display(0) == 0.0
-    assert map_architecture_display(60) == 30.0
-    assert map_architecture_display(80) == 55.0
-    assert map_architecture_display(90) == 75.0
-    assert map_architecture_display(95) == 85.0
-    assert map_architecture_display(100) == 100.0
+from assess.assess_middle_layer import assess, generate_report
 
 
 def test_assess_returns_raw_and_display_scores(monkeypatch, sample_lineage_data):
@@ -21,13 +12,15 @@ def test_assess_returns_raw_and_display_scores(monkeypatch, sample_lineage_data)
     assert "architecture" in result
     assert result["weights"]["architecture"] == 0.25
 
+    # 展示分 = 原始分 (取消展示分映射后)
     assert result["reuse"]["raw"] == result["reuse"]["display"]
     assert result["depth"]["raw"] == result["depth"]["display"]
+    assert result["architecture"]["raw"] == result["architecture"]["display"]
     assert result["naming"]["raw"] == result["naming"]["display"]
+    assert result["overall_display"] == result["overall_raw"]
 
-    assert result["architecture"]["raw"] == 95
-    assert result["architecture"]["display"] == 85.0
-    assert result["overall_display"] < result["overall_raw"]
+    # sample: 4 张表, 1 条违规 (低权重=1), cap 后 = 1, 合规率 = (1 - 1/4) × 100 = 75
+    assert result["architecture"]["raw"] == 75.0
 
 
 def test_generate_report_contains_raw_and_display_scores(
@@ -42,5 +35,5 @@ def test_generate_report_contains_raw_and_display_scores(
 
     assert "总体评分(展示)" in report
     assert "总体评分(原始)" in report
-    assert "【架构合理性】评分(展示/原始): 85.0 / 95" in report
-    assert "累计扣分: 5" in report
+    assert "【架构合理性】评分: 75.0" in report
+    assert "Σ(每表 cap 后权重) = 1" in report
