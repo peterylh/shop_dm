@@ -111,13 +111,28 @@ python lineage/lineage_extractor.py --project finance_analytics
 
 读取 `lineage_data_{project}.json`，将血缘数据注入 HTML 页面并刷新可视化。
 
-当前 CLI 仅支持 `shop`。
+支持 `--project shop|finance_analytics`。
+
+路径规则：
+
+- 项目上下文从 `config.py` 中的 `PROJECT_CONFIG` 推导
+- `shop` 保持历史兼容输出
+- 非 `shop` 项目使用独立 HTML 文件，避免覆盖 `shop` 的可视化结果
 
 输出位置：
 
 - `shop` → `lineage/lineage.html`、`lineage/lineage_job.html`
+- `finance_analytics` → `lineage/lineage_finance_analytics.html`、`lineage/lineage_job_finance_analytics.html`
 
-说明：`finance_analytics` 已支持血缘抽取与 DAG 生成，但 `refresh_lineage_html.py` 目前尚未扩展到该项目。
+示例：
+
+```bash
+# shop 项目（默认）
+python lineage/refresh_lineage_html.py
+
+# finance_analytics 项目
+python lineage/refresh_lineage_html.py --project finance_analytics
+```
 
 ### job_dag.py
 

@@ -1,48 +1,59 @@
 #!/usr/bin/env python3
 """
-血缘 HTML 刷新工具
-读取 lineage_data.json, 注入到 lineage_job.html 中重新生成
-当前仅支持 shop 项目
+血缘 HTML 刷新工具。
+
+从 `PROJECT_CONFIG` 推导项目目录和数据库名，读取对应的
+`lineage_data_{project}.json`，并刷新项目对应的血缘 HTML。
 """
 
-import json, re, argparse, sys
-from pathlib import Path
+import argparse
+import json
+import re
+import sys
 from collections import OrderedDict
+from pathlib import Path
+
 import sqlglot
 from sqlglot import exp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import PROJECT_CONFIG
 
-CURRENT_DB = "shop_dm"
-
 LINEAGE_DIR = Path(__file__).parent
 
 PROJECT_DIR = Path(__file__).parent.parent
 
-PROJECT_MAP = {
+JOB_LOGIC_MAP = {
     "shop": {
-        "tasks_dir": Path(__file__).parent.parent / "shop" / "tasks",
-        "job_logic": {
-            "dwd_customer": "清洗客户数据 → 划分年龄段 → 补全缺失值",
-            "dwd_order_detail": "多表关联 → 计算毛利 → 回填成本 → 剔除无效订单",
-            "dwd_product": "关联品类维表 → 计算毛利率 → 清理异常值",
-            "dwd_store": "门店分级 → 计算开业年限 → 补全缺失值",
-            "dws_category_sales_monthly": "按品类+月份汇总 → 清理空值 → 剔除无效数据",
-            "dws_customer_order_summary": "按客户+日期汇总 → 修正异常值 → 剔除无效记录",
-            "dws_product_sales_daily": "按商品+日期汇总 → 清理空值 → 剔除异常数据",
-            "dws_store_sales_daily": "按门店+日期汇总 → 清理空值 → 剔除异常数据",
-            "ads_customer_rfm": "计算RFM指标 → NTILE打分 → 客户分层 → 填充默认值",
-            "ads_product_topn_daily": "每日排名 → 关联商品维表 → 剔除超出TOP10的数据",
-            "ads_sales_dashboard": "多店日汇总 → 计算环比增长率 → 填充空值",
-            "ads_store_performance": "按月汇总门店KPI → 归一化评分 → 填充空值",
-        },
+        "dwd_customer": "清洗客户数据 → 划分年龄段 → 补全缺失值",
+        "dwd_order_detail": "多表关联 → 计算毛利 → 回填成本 → 剔除无效订单",
+        "dwd_product": "关联品类维表 → 计算毛利率 → 清理异常值",
+        "dwd_store": "门店分级 → 计算开业年限 → 补全缺失值",
+        "dws_category_sales_monthly": "按品类+月份汇总 → 清理空值 → 剔除无效数据",
+        "dws_customer_order_summary": "按客户+日期汇总 → 修正异常值 → 剔除无效记录",
+        "dws_product_sales_daily": "按商品+日期汇总 → 清理空值 → 剔除异常数据",
+        "dws_store_sales_daily": "按门店+日期汇总 → 清理空值 → 剔除异常数据",
+        "ads_customer_rfm": "计算RFM指标 → NTILE打分 → 客户分层 → 填充默认值",
+        "ads_product_topn_daily": "每日排名 → 关联商品维表 → 剔除超出TOP10的数据",
+        "ads_sales_dashboard": "多店日汇总 → 计算环比增长率 → 填充空值",
+        "ads_store_performance": "按月汇总门店KPI → 归一化评分 → 填充空值",
     },
 }
 
 
-def load_lineage_data(project="shop"):
+def resolve_lineage_data_path(project):
     path = LINEAGE_DIR / f"lineage_data_{project}.json"
+    if path.exists():
+        return path
+    if project == "shop":
+        legacy_path = LINEAGE_DIR / "lineage_data.json"
+        if legacy_path.exists():
+            return legacy_path
+    return path
+
+
+def load_lineage_data(project):
+    path = resolve_lineage_data_path(project)
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -55,20 +66,17 @@ def _layer_priority(tbl):
     return rank + 1 if rank >= 0 else 0
 
 
-def _strip_db(name):
-    return name.replace(f"{CURRENT_DB}.", "")
+def _strip_db(name, current_db):
+    return name.replace(f"{current_db}.", "")
 
 
-def generate_jobs(data, cfg=None):
-    if cfg is None:
-        cfg = PROJECT_MAP["shop"]
+def generate_jobs(data, tasks_dir, current_db, job_logic=None):
     file_edges = {}
     for e in data["edges"]:
         fname = e.get("source_file", "")
         file_edges.setdefault(fname, []).append(e)
 
-    tasks_dir = cfg["tasks_dir"]
-    job_logic = cfg["job_logic"]
+    job_logic = job_logic or {}
     jobs = []
     for f in sorted(tasks_dir.glob("*.sql")):
         fname = f.name
@@ -77,21 +85,21 @@ def generate_jobs(data, cfg=None):
         sources = set()
         targets = set()
         for e in edges:
-            sources.add(_strip_db(e["source"].rsplit(".", 1)[0]))
-            targets.add(_strip_db(e["target"].rsplit(".", 1)[0]))
+            sources.add(_strip_db(e["source"].rsplit(".", 1)[0], current_db))
+            targets.add(_strip_db(e["target"].rsplit(".", 1)[0], current_db))
 
         for stmt in sqlglot.parse(f.read_text(encoding="utf-8"), dialect="doris"):
             if stmt is None:
                 continue
             if isinstance(stmt, (exp.Insert, exp.Create)):
-                targets.add(_strip_db(stmt.this.sql(dialect="doris")))
+                targets.add(_strip_db(stmt.this.sql(dialect="doris"), current_db))
             elif isinstance(stmt, exp.Update):
-                targets.add(_strip_db(stmt.this.sql(dialect="doris")))
+                targets.add(_strip_db(stmt.this.sql(dialect="doris"), current_db))
 
         main_target = max(targets, key=_layer_priority) if targets else f.stem
         sources.discard(main_target)
 
-        short = _strip_db(main_target)
+        short = _strip_db(main_target, current_db)
         from config import get_naming_config
         layer = get_naming_config().determine_layer(short)
 
@@ -110,6 +118,37 @@ def generate_jobs(data, cfg=None):
         )
 
     return jobs
+
+
+def resolve_output_paths(project):
+    job_template = LINEAGE_DIR / "lineage_job.html"
+    lineage_template = LINEAGE_DIR / "lineage.html"
+    if project == "shop":
+        return {
+            "job_template": job_template,
+            "job_output": job_template,
+            "lineage_template": lineage_template,
+            "lineage_output": lineage_template,
+        }
+    return {
+        "job_template": job_template,
+        "job_output": LINEAGE_DIR / f"lineage_job_{project}.html",
+        "lineage_template": lineage_template,
+        "lineage_output": LINEAGE_DIR / f"lineage_{project}.html",
+    }
+
+
+def get_project_context(project):
+    project_cfg = PROJECT_CONFIG[project]
+    paths = resolve_output_paths(project)
+    return {
+        "project": project,
+        "current_db": project_cfg["db"],
+        "tasks_dir": PROJECT_DIR / project_cfg["dir"] / "tasks",
+        "job_logic": JOB_LOGIC_MAP.get(project, {}),
+        "lineage_data_path": resolve_lineage_data_path(project),
+        **paths,
+    }
 
 
 def inject_into_html(template_path, output_path, lineage_json, jobs_json):
@@ -131,12 +170,11 @@ def inject_into_html(template_path, output_path, lineage_json, jobs_json):
         f.write(html)
 
 
-def update_lineage_html(data, lineage_json, output_html=None):
+def update_lineage_html(lineage_json, template_path, output_path):
     """更新只含字段级视图的 lineage.html."""
-    path = output_html or (LINEAGE_DIR / "lineage.html")
-    if not path.exists():
+    if not template_path.exists():
         return
-    with open(path, encoding="utf-8") as f:
+    with open(template_path, encoding="utf-8") as f:
         html = f.read()
     html = re.sub(
         r"(const LINEAGE_DATA\s*=\s*)\{.*?\};",
@@ -144,37 +182,46 @@ def update_lineage_html(data, lineage_json, output_html=None):
         html,
         flags=re.DOTALL,
     )
-    with open(path, "w", encoding="utf-8") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
-    print("  已更新:", path)
+    print("  已更新:", output_path)
 
 
 def main():
     parser = argparse.ArgumentParser(description="血缘 HTML 刷新工具")
-    parser.add_argument("--project", default="shop", choices=list(PROJECT_MAP.keys()),
-                        help="项目名称")
+    parser.add_argument(
+        "--project",
+        default="shop",
+        choices=list(PROJECT_CONFIG.keys()),
+        help="项目名称",
+    )
     args = parser.parse_args()
-
-    global CURRENT_DB
-    cfg = PROJECT_MAP[args.project]
+    ctx = get_project_context(args.project)
 
     data = load_lineage_data(project=args.project)
-    jobs = generate_jobs(data, cfg=cfg)
+    jobs = generate_jobs(
+        data,
+        tasks_dir=ctx["tasks_dir"],
+        current_db=ctx["current_db"],
+        job_logic=ctx["job_logic"],
+    )
 
     lineage_json = json.dumps(data, ensure_ascii=False, indent=2)
     jobs_json = json.dumps(jobs, ensure_ascii=False, indent=2)
 
-    template = LINEAGE_DIR / "lineage_job.html"
-    output_html = LINEAGE_DIR / "lineage.html"
-
+    template = ctx["job_template"]
     if not template.exists():
         print(f"模板不存在: {template}")
         return
 
-    inject_into_html(template, template, lineage_json, jobs_json)
-    update_lineage_html(data, lineage_json, output_html=output_html)
+    inject_into_html(template, ctx["job_output"], lineage_json, jobs_json)
+    update_lineage_html(
+        lineage_json,
+        template_path=ctx["lineage_template"],
+        output_path=ctx["lineage_output"],
+    )
 
-    print("HTML 已刷新:", template)
+    print("HTML 已刷新:", ctx["job_output"])
     print(
         f"  表: {len(data['tables'])}, 边: {len(data['edges'])}, 节点: {len(data['nodes'])}"
     )
