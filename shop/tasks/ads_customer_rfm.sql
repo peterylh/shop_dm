@@ -6,8 +6,9 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
+SET @full_refresh = COALESCE(@full_refresh, 0);
 -- Step 1: 删除当前统计日期的数据
-DELETE FROM shop_dm.ads_customer_rfm WHERE stat_date = CAST(@etl_date AS DATE);
+DELETE FROM shop_dm.ads_customer_rfm WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 2: 计算 RFM 指标 + NTILE 分项评分 + 综合评分 + 客户分层
 INSERT INTO shop_dm.ads_customer_rfm
@@ -19,7 +20,7 @@ WITH rfm_base AS (
         SUM(order_count) AS frequency,
         SUM(payment_amount) AS monetary
     FROM shop_dm.dws_customer_order_summary
-    WHERE stat_date <= CAST(@etl_date AS DATE)
+    WHERE IF(@full_refresh = 1, 1=1, stat_date <= CAST(@etl_date AS DATE))
     GROUP BY customer_id
 ),
 rfm_scored AS (
@@ -68,4 +69,4 @@ FROM rfm_scored;
 UPDATE shop_dm.ads_customer_rfm
 SET customer_segment = '一般价值客户'
 WHERE customer_segment IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));

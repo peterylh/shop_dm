@@ -3,13 +3,14 @@
 数据重新初始化.
 
 流程:
-  1. 重建所有表 (执行 ddl/*.sql, DROP + CREATE)
-  2. 初始化 ODS 层数据
-  3. 从 ODS 表自动发现分区日期, 确定 etl_dates
-  4. 调用 task_run.py 按 DAG 拓扑重算上层表
+   1. 重建所有表 (执行 ddl/*.sql, DROP + CREATE)
+   2. 初始化 ODS 层数据
+   3. 从 ODS 表自动发现分区日期, 确定 etl_dates
+   4. 调用 task_run.py 按 DAG 拓扑重算上层表
 
 用法:
     python exec/reinit_project.py --project shop
+    python exec/reinit_project.py --project shop --full-refresh
 """
 
 import argparse
@@ -56,6 +57,8 @@ def main():
     parser.add_argument("--db-env", default="prod", choices=list(DB_ENV_CONFIG.keys()))
     parser.add_argument("--etl-dates", nargs="*", default=None,
                         help="ETL 日期列表 (YYYY-MM-DD), 不传则自动从 ODS 发现")
+    parser.add_argument("--full-refresh", action="store_true",
+                        help="全量刷新模式 (启用 batch SQL 加速)")
     parser.add_argument("--parallel", type=int, default=1,
                         help="并行度, 默认 1 (串行)")
     args = parser.parse_args()
@@ -139,31 +142,37 @@ def main():
             print(f"  参考: python {PROJECT_CONFIG[project]['dir']}/import_data.py")
 
     # ── Step 3: 确定 ETL 日期 ──
-    print(f"\n{'=' * 60}")
-    if args.etl_dates:
-        etl_dates = args.etl_dates
-        print(f"Step 3: 使用指定的 ETL 日期 ({len(etl_dates)} 个)")
-    else:
-        print("Step 3: 自动发现 ODS 分区日期")
-        etl_dates = get_etl_date_partitions(db_name, env_cmd)
-        if not etl_dates:
-            print("  ODS 表中无数据, 无法确定 etl_date")
-            sys.exit(1)
-    print(f"  ETL 日期: {', '.join(etl_dates)}")
-
-    # ── Step 4: 调用 task_run.py ──
-    print(f"\n{'=' * 60}")
-    print("Step 4: 按 DAG 拓扑重算上层表")
-
     task_run = _root / "exec" / "task_run.py"
     cmd = [
         sys.executable, str(task_run),
         "--project", project,
-        "--etl-dates", *etl_dates,
         "--db-env", args.db_env,
         "--refresh-dag",
         "--parallel", str(parallel),
     ]
+
+    if args.full_refresh:
+        print(f"\n{'=' * 60}")
+        print("Step 3: 全量刷新模式 (启用 batch SQL 加速)")
+        cmd += ["--full-refresh"]
+        print(f"  跳过逐日迭代, 按 batch SQL 执行")
+    else:
+        print(f"\n{'=' * 60}")
+        if args.etl_dates:
+            etl_dates = args.etl_dates
+            print(f"Step 3: 使用指定的 ETL 日期 ({len(etl_dates)} 个)")
+        else:
+            print("Step 3: 自动发现 ODS 分区日期")
+            etl_dates = get_etl_date_partitions(db_name, env_cmd)
+            if not etl_dates:
+                print("  ODS 表中无数据, 无法确定 etl_date")
+                sys.exit(1)
+        print(f"  ETL 日期: {', '.join(etl_dates)}")
+        cmd += ["--etl-dates", *etl_dates]
+
+    # ── Step 4: 调用 task_run.py ──
+    print(f"\n{'=' * 60}")
+    print("Step 4: 按 DAG 拓扑重算上层表")
     print(f"  执行: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=_root)
     if result.returncode != 0:

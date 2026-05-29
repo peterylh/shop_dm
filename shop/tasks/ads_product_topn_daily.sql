@@ -6,8 +6,9 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
+SET @full_refresh = COALESCE(@full_refresh, 0);
 -- Step 1: 删除当前统计日期的数据
-DELETE FROM shop_dm.ads_product_topn_daily WHERE stat_date = CAST(@etl_date AS DATE);
+DELETE FROM shop_dm.ads_product_topn_daily WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 2: 每日商品销售排名(窗口函数)，关联商品维表
 INSERT INTO shop_dm.ads_product_topn_daily
@@ -23,21 +24,21 @@ SELECT
 FROM shop_dm.dws_product_sales_daily psd
 LEFT JOIN shop_dm.dwd_product p ON psd.product_id = p.product_id
 WHERE psd.sale_amount > 0
-  AND psd.stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, psd.stat_date = CAST(@etl_date AS DATE));
 
 -- Step 3: 品类名称为空时设为"未分类"
 UPDATE shop_dm.ads_product_topn_daily
 SET category_name = '未分类'
 WHERE category_name IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 4: 商品名称为空时用 ID 填充
 UPDATE shop_dm.ads_product_topn_daily
 SET product_name = CONCAT('商品#', CAST(product_id AS STRING))
 WHERE product_name IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 5: 只保留每日 TOP 10
 DELETE FROM shop_dm.ads_product_topn_daily
 WHERE rank_num > 10
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));

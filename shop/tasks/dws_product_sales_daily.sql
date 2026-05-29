@@ -6,8 +6,9 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
+SET @full_refresh = COALESCE(@full_refresh, 0);
 -- Step 1: 删除当前统计日期的数据
-DELETE FROM shop_dm.dws_product_sales_daily WHERE stat_date = CAST(@etl_date AS DATE);
+DELETE FROM shop_dm.dws_product_sales_daily WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 2: 按商品+日期汇总销售指标
 INSERT INTO shop_dm.dws_product_sales_daily
@@ -20,16 +21,16 @@ SELECT
     SUM(discount) AS discount_amount,
     NOW() AS etl_time
 FROM shop_dm.dwd_order_detail
-WHERE order_date = CAST(@etl_date AS DATE)
+WHERE IF(@full_refresh = 1, 1=1, order_date = CAST(@etl_date AS DATE))
 GROUP BY product_id, order_date;
 
 -- Step 3: 折扣金额为空时修正为 0
 UPDATE shop_dm.dws_product_sales_daily
 SET discount_amount = 0.00
 WHERE discount_amount IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 -- Step 4: 删除销售额为负数的记录（保留 0 值记录，如全额折扣订单）
 DELETE FROM shop_dm.dws_product_sales_daily
 WHERE sale_amount < 0
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));

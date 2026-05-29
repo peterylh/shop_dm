@@ -6,7 +6,8 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
-DELETE FROM shop_dm.dws_inventory_daily WHERE stat_date = CAST(@etl_date AS DATE);
+SET @full_refresh = COALESCE(@full_refresh, 0);
+DELETE FROM shop_dm.dws_inventory_daily WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 INSERT INTO shop_dm.dws_inventory_daily
 SELECT
@@ -24,5 +25,5 @@ SELECT
     MAX(days_since_restock) AS days_since_restock,
     NOW() AS etl_time
 FROM shop_dm.dwd_inventory
-WHERE snapshot_date = CAST(@etl_date AS DATE)
+WHERE IF(@full_refresh = 1, 1=1, snapshot_date = CAST(@etl_date AS DATE))
 GROUP BY product_id, store_id, snapshot_date;

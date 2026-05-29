@@ -6,7 +6,8 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
-DELETE FROM shop_dm.dws_promotion_effect_daily WHERE stat_date = CAST(@etl_date AS DATE);
+SET @full_refresh = COALESCE(@full_refresh, 0);
+DELETE FROM shop_dm.dws_promotion_effect_daily WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 INSERT INTO shop_dm.dws_promotion_effect_daily
 SELECT
@@ -23,21 +24,21 @@ SELECT
 FROM shop_dm.dwd_order_detail od
 LEFT JOIN shop_dm.dwd_promotion p
     ON od.promotion_id = p.promotion_id
-    AND p.snapshot_date = CAST(@etl_date AS DATE)
-WHERE od.order_date = CAST(@etl_date AS DATE)
+    AND p.snapshot_date = IF(@full_refresh = 1, DATE(od.order_date), CAST(@etl_date AS DATE))
+WHERE IF(@full_refresh = 1, 1=1, od.order_date = CAST(@etl_date AS DATE))
   AND od.promotion_id IS NOT NULL
 GROUP BY od.promotion_id, od.order_date;
 
 UPDATE shop_dm.dws_promotion_effect_daily
 SET discount_amount = 0.00
 WHERE discount_amount IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 UPDATE shop_dm.dws_promotion_effect_daily
 SET promotion_name = CONCAT('促销活动-', promotion_id)
 WHERE (promotion_name IS NULL OR promotion_name = '')
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 DELETE FROM shop_dm.dws_promotion_effect_daily
 WHERE sale_amount < 0
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));

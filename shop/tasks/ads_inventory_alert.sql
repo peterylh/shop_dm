@@ -6,7 +6,8 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
-DELETE FROM shop_dm.ads_inventory_alert WHERE stat_date = CAST(@etl_date AS DATE);
+SET @full_refresh = COALESCE(@full_refresh, 0);
+DELETE FROM shop_dm.ads_inventory_alert WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 INSERT INTO shop_dm.ads_inventory_alert
 WITH sales_velocity AS (
@@ -14,8 +15,8 @@ WITH sales_velocity AS (
         product_id,
         ROUND(AVG(sale_quantity), 2) AS daily_sales_velocity
     FROM shop_dm.dws_product_sales_daily
-    WHERE stat_date BETWEEN DATE_SUB(CAST(@etl_date AS DATE), INTERVAL 7 DAY)
-      AND CAST(@etl_date AS DATE)
+    WHERE IF(@full_refresh = 1, 1=1, stat_date BETWEEN DATE_SUB(CAST(@etl_date AS DATE), INTERVAL 7 DAY)
+      AND CAST(@etl_date AS DATE))
     GROUP BY product_id
 )
 SELECT
@@ -46,13 +47,13 @@ SELECT
 FROM shop_dm.dws_inventory_daily inv
 LEFT JOIN shop_dm.dwd_product p
     ON inv.product_id = p.product_id
-    AND p.snapshot_date = CAST(@etl_date AS DATE)
+    AND p.snapshot_date = IF(@full_refresh = 1, DATE(inv.stat_date), CAST(@etl_date AS DATE))
 LEFT JOIN shop_dm.dwd_store s
     ON inv.store_id = s.store_id
-    AND s.snapshot_date = CAST(@etl_date AS DATE)
+    AND s.snapshot_date = IF(@full_refresh = 1, DATE(inv.stat_date), CAST(@etl_date AS DATE))
 LEFT JOIN sales_velocity sv
     ON inv.product_id = sv.product_id
-WHERE inv.stat_date = CAST(@etl_date AS DATE)
+WHERE IF(@full_refresh = 1, 1=1, inv.stat_date = CAST(@etl_date AS DATE))
 GROUP BY inv.product_id, inv.store_id, inv.stat_date,
     inv.quantity, inv.safety_stock, inv.stock_status,
     inv.days_since_restock, sv.daily_sales_velocity;
@@ -60,9 +61,9 @@ GROUP BY inv.product_id, inv.store_id, inv.stat_date,
 UPDATE shop_dm.ads_inventory_alert
 SET product_name = CONCAT('商品-', product_id)
 WHERE (product_name IS NULL OR product_name = '')
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 UPDATE shop_dm.ads_inventory_alert
 SET store_name = CONCAT('门店-', store_id)
 WHERE (store_name IS NULL OR store_name = '')
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));

@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS shop_dm.ads_sales_dashboard (
     total_amount       DECIMAL(14,2) NULL COMMENT '总销售额',
     total_discount     DECIMAL(14,2) NULL COMMENT '总折扣金额',
     avg_order_amount   DECIMAL(10,2) NULL COMMENT '平均客单价',
-    order_growth_rate  DECIMAL(5,2)  NULL COMMENT '订单环比增长率(%)',
-    amount_growth_rate DECIMAL(5,2)  NULL COMMENT '销售额环比增长率(%)',
+    order_growth_rate  DECIMAL(12,2)  NULL COMMENT '订单环比增长率(%)',
+    amount_growth_rate DECIMAL(12,2)  NULL COMMENT '销售额环比增长率(%)',
     etl_time           DATETIME      NOT NULL COMMENT 'ETL处理时间'
 ) ENGINE=OLAP
 UNIQUE KEY(stat_date)

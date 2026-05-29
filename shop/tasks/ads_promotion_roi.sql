@@ -6,7 +6,8 @@
 -- ============================================================
 
 SET @etl_date = COALESCE(@etl_date, CURDATE());
-DELETE FROM shop_dm.ads_promotion_roi WHERE stat_date = CAST(@etl_date AS DATE);
+SET @full_refresh = COALESCE(@full_refresh, 0);
+DELETE FROM shop_dm.ads_promotion_roi WHERE IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 INSERT INTO shop_dm.ads_promotion_roi
 SELECT
@@ -27,14 +28,14 @@ SELECT
     END AS roi,
     NOW() AS etl_time
 FROM shop_dm.dws_promotion_effect_daily pe
-WHERE pe.stat_date = CAST(@etl_date AS DATE);
+WHERE IF(@full_refresh = 1, 1=1, pe.stat_date = CAST(@etl_date AS DATE));
 
 UPDATE shop_dm.ads_promotion_roi
 SET promotion_name = CONCAT('促销活动-', promotion_id)
 WHERE (promotion_name IS NULL OR promotion_name = '')
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
 
 UPDATE shop_dm.ads_promotion_roi
 SET total_discount_cost = 0.00
 WHERE total_discount_cost IS NULL
-  AND stat_date = CAST(@etl_date AS DATE);
+  AND IF(@full_refresh = 1, 1=1, stat_date = CAST(@etl_date AS DATE));
