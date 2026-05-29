@@ -1,0 +1,128 @@
+version: 2
+models:
+- name: ads_customer_by_age_group
+  config:
+    materialized: full
+- name: ads_customer_by_geography
+  config:
+    materialized: full
+- name: ads_customer_by_segment
+  config:
+    materialized: full
+- name: ads_product_summary
+  config:
+    materialized: full
+- name: dim_account
+  config:
+    materialized: full
+- name: dim_agent
+  config:
+    materialized: full
+- name: dim_campaign
+  config:
+    materialized: full
+- name: dim_customer
+  config:
+    materialized: full
+- name: dim_date
+  config:
+    materialized: full
+- name: dim_economic_indicators
+  config:
+    materialized: full
+- name: dim_location
+  config:
+    materialized: full
+- name: dim_merchant
+  config:
+    materialized: full
+- name: dim_product
+  config:
+    materialized: full
+- name: dwd_account_events
+  config:
+    materialized: full
+- name: dwd_accounts
+  config:
+    materialized: full
+- name: dwd_atm_locations
+  config:
+    materialized: full
+- name: dwd_branch_locations
+  config:
+    materialized: full
+- name: dwd_credit_applications
+  config:
+    materialized: full
+- name: dwd_customer_interactions
+  config:
+    materialized: full
+- name: dwd_customer_segments_history
+  config:
+    materialized: full
+- name: dwd_customers
+  config:
+    materialized: full
+- name: dwd_economic_indicators
+  config:
+    materialized: full
+- name: dwd_fraud_alerts
+  config:
+    materialized: full
+- name: dwd_loan_payments
+  config:
+    materialized: full
+- name: dwd_marketing_campaigns
+  config:
+    materialized: full
+- name: dwd_merchants
+  config:
+    materialized: full
+- name: dwd_products
+  config:
+    materialized: full
+- name: dwd_regulatory_reports
+  config:
+    materialized: full
+- name: dwd_risk_assessments
+  config:
+    materialized: full
+- name: dwd_transactions
+  config:
+    materialized: full
+- name: dws_account_daily_snapshot
+  config:
+    materialized: full
+- name: dws_account_events
+  config:
+    materialized: full
+- name: dws_credit_applications
+  config:
+    materialized: full
+- name: dws_customer_interactions
+  config:
+    materialized: full
+- name: dws_customer_monthly_summary
+  config:
+    materialized: full
+- name: dws_customer_segment_history
+  config:
+    materialized: full
+- name: dws_fraud_alerts
+  config:
+    materialized: full
+- name: dws_loan_payments
+  config:
+    materialized: full
+- name: dws_marketing_campaigns
+  config:
+    materialized: full
+- name: dws_regulatory_reports
+  config:
+    materialized: full
+- name: dws_risk_assessments
+  config:
+    materialized: full
+- name: dws_transactions
+  config:
+    materialized: full

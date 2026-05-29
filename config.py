@@ -433,6 +433,12 @@ PROJECT_CONFIG = {
         "qa_db": "olist_dm_qa",
         "lineage_db": "olist_lineage",
     },
+    "finance_analytics": {
+        "dir": "finance_analytics",
+        "db": "finance_analytics_dm",
+        "qa_db": "finance_analytics_dm_qa",
+        "lineage_db": "finance_analytics_lineage",
+    },
 }
 
 # 兼容旧的命名
