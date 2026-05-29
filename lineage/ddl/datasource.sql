@@ -11,5 +11,4 @@ DISTRIBUTED BY HASH(id) BUCKETS 10
 PROPERTIES ("replication_num" = "1");
 
 INSERT INTO datasource VALUES
-(1, 'shop_dm',  'starrocks', '172.16.0.90:9030'),
-(2, 'olist_dm', 'starrocks', '172.16.0.90:9030');
+(1, 'shop_dm',  'starrocks', '172.16.0.90:9030');

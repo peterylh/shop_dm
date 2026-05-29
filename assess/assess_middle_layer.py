@@ -5,7 +5,7 @@
 
 用法:
     python assess/assess_middle_layer.py
-    python assess/assess_middle_layer.py --project olist
+    python assess/assess_middle_layer.py --project finance_analytics
     python assess/assess_middle_layer.py --output report.json
     python assess/assess_middle_layer.py --reuse-weight 0.3 --depth-weight 0.2
 """
@@ -796,8 +796,8 @@ def main():
     parser = argparse.ArgumentParser(description="数据集市中间层评估工具")
     parser.add_argument("--project",
                         default="shop",
-                        choices=["shop", "olist"],
-                        help="项目名称 (shop / olist)")
+                        choices=["shop", "finance_analytics"],
+                        help="项目名称 (shop / finance_analytics)")
     parser.add_argument(
         "--output",
         help="输出 JSON 文件路径 (默认 assess/assess_result_{project}.json)")

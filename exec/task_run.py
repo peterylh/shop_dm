@@ -6,7 +6,7 @@
     python exec/task_run.py --project shop --etl-dates 2025-01-01
     python exec/task_run.py --project shop --etl-dates 2025-01-01 2025-01-02 --job-list dwd_customer dws_store_sales_daily
     python exec/task_run.py --project shop --full-refresh
-    python exec/task_run.py --project olist --etl-dates 2025-01-01 --db-env prod
+    python exec/task_run.py --project finance_analytics --etl-dates 2025-01-15 --db-env prod
     python exec/task_run.py --project shop --etl-dates 2025-01-01 --refresh-dag
 """
 

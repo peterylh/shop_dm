@@ -138,8 +138,6 @@ def main():
                 sys.exit(1)
     else:
         print(f"  {project} 项目无 data/ 目录, 请手动导入 ODS 数据")
-        if project == "olist":
-            print(f"  参考: python {PROJECT_CONFIG[project]['dir']}/import_data.py")
 
     # ── Step 3: 确定 ETL 日期 ──
     task_run = _root / "exec" / "task_run.py"

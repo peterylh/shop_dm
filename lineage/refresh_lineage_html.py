@@ -2,7 +2,7 @@
 """
 血缘 HTML 刷新工具
 读取 lineage_data.json, 注入到 lineage_job.html 中重新生成
-支持: shop(默认) / olist 项目
+当前仅支持 shop 项目
 """
 
 import json, re, argparse, sys
@@ -36,27 +36,6 @@ PROJECT_MAP = {
             "ads_product_topn_daily": "每日排名 → 关联商品维表 → 剔除超出TOP10的数据",
             "ads_sales_dashboard": "多店日汇总 → 计算环比增长率 → 填充空值",
             "ads_store_performance": "按月汇总门店KPI → 归一化评分 → 填充空值",
-        },
-    },
-    "olist": {
-        "tasks_dir": Path(__file__).parent.parent / "olist" / "tasks",
-        "job_logic": {
-            "dwd_customer": "客户基本信息 → 地理区域划分 → 补全缺失值",
-            "dwd_order_detail": "多表关联 → 品类翻译 → 配送天数计算 → 延迟判断",
-            "dwd_product": "品类翻译 → 体积计算 → 重量分级",
-            "dwd_seller": "地理区域划分 → 补全缺失值",
-            "dws_seller_monthly": "按月+卖家汇总 → 修正空值",
-            "dws_product_category_monthly": "按月+品类汇总 → 修正空值",
-            "dws_customer_order_summary": "按客户+日期汇总 → 修正空值 → 删除异常",
-            "dws_daily_orders": "按日汇总 → 计算延迟配送数 → 修正空值",
-            "ads_seller_performance_ranking": "窗口排名 → 综合评分 → 修正空值",
-            "ads_product_topn": "按日排名 → 关联品类 → 截取 Top N",
-            "ads_payment_analysis": "按月+支付方式汇总 → 计算占比 → 修正异常",
-            "ads_review_analysis": "按月+评分汇总 → 计算占比与配送天数",
-            "ads_category_monthly_trend": "复用 DWS 月度汇总 → LAG 计算环比增长率",
-            "ads_delivery_performance": "从 DWS 日汇总读取配送指标 → 计算准时率",
-            "ads_customer_rfm": "RFM指标计算 → NTILE打分 → 客户分层",
-            "ads_geographic_sales": "按月+州汇总 → 区域划分 → 修正空值",
         },
     },
 }
@@ -178,8 +157,6 @@ def main():
 
     global CURRENT_DB
     cfg = PROJECT_MAP[args.project]
-    if args.project == "olist":
-        CURRENT_DB = "olist_dm"
 
     data = load_lineage_data(project=args.project)
     jobs = generate_jobs(data, cfg=cfg)
@@ -187,14 +164,8 @@ def main():
     lineage_json = json.dumps(data, ensure_ascii=False, indent=2)
     jobs_json = json.dumps(jobs, ensure_ascii=False, indent=2)
 
-    if args.project == "olist":
-        olist_dir = LINEAGE_DIR.parent / "olist"
-        olist_dir.mkdir(parents=True, exist_ok=True)
-        template = olist_dir / "lineage_job.html"
-        output_html = olist_dir / "lineage.html"
-    else:
-        template = LINEAGE_DIR / "lineage_job.html"
-        output_html = LINEAGE_DIR / "lineage.html"
+    template = LINEAGE_DIR / "lineage_job.html"
+    output_html = LINEAGE_DIR / "lineage.html"
 
     if not template.exists():
         print(f"模板不存在: {template}")

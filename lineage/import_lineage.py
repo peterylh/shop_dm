@@ -2,7 +2,7 @@
 """
 将 lineage_data_{project}.json 导入对应该项目的 lineage 库
 shop  → shop_lineage
-olist → olist_lineage
+finance_analytics → finance_analytics_lineage
 
 DDL 执行 (首次) 需要先跑 lineage/ddl/*.sql
 """

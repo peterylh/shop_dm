@@ -427,12 +427,6 @@ PROJECT_CONFIG = {
         "qa_db": "shop_dm_qa",
         "lineage_db": "shop_lineage",
     },
-    "olist": {
-        "dir": "olist",
-        "db": "olist_dm",
-        "qa_db": "olist_dm_qa",
-        "lineage_db": "olist_lineage",
-    },
     "finance_analytics": {
         "dir": "finance_analytics",
         "db": "finance_analytics_dm",
