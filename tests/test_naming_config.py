@@ -542,6 +542,9 @@ class TestEnterpriseNaming:
         r = nc._match_segments("DIM_PM_CD", segs)
         assert r == {"DIM_DESC": "CD"}
 
+    def test_table_name_max_length(self, nc):
+        assert nc.table_name_max_length == 30
+
 
 class TestEnterpriseDetermineLayer:
     @pytest.fixture
@@ -577,4 +580,3 @@ class TestGetNamingConfigByProject:
         config.PROJECT_CONFIG["test_enterprise"] = {"naming_config": "naming_config_enterprise.yaml"}
         nc = get_naming_config("test_enterprise")
         assert "DWD" in nc.layers
-

@@ -46,6 +46,7 @@ class NamingConfig:
     layer_order: list[str]
     column_segments: list
     common_columns: set[str]
+    table_name_max_length: Optional[int] = None
 
     def determine_layer(self, table_name: str) -> str:
         short = table_name.split(".")[-1]
@@ -371,6 +372,25 @@ def load_naming_config(path=None):
         if td.regex:
             td._compiled = re.compile(td.regex)
         types[name] = td
+
+    table_cfg = raw.get("table", {}) or {}
+    table_constraints = {}
+    table_templates_cfg = table_cfg
+    if isinstance(table_cfg, dict):
+        table_constraints = (
+            table_cfg.get("constraints")
+            or table_cfg.get("rules")
+            or {}
+        )
+        if "templates" in table_cfg:
+            table_templates_cfg = table_cfg.get("templates") or {}
+        else:
+            table_templates_cfg = {
+                name: cfg
+                for name, cfg in table_cfg.items()
+                if name not in ("constraints", "rules")
+            }
+
     rank_map = {}
     layer_order = []
     layer_cfg = raw.get("layers", [])
@@ -386,16 +406,22 @@ def load_naming_config(path=None):
                 if item not in layer_order:
                     layer_order.append(item)
     else:
-        for r, name in enumerate(raw.get("table", {}).keys()):
+        for r, name in enumerate(table_templates_cfg.keys()):
             rank_map[name] = r
             if name not in layer_order:
                 layer_order.append(name)
 
     layers = {}
-    for layer_name, template_defs in raw.get("table", {}).items():
-        if isinstance(template_defs[0], str):
+    for layer_name, template_defs in table_templates_cfg.items():
+        if isinstance(template_defs, str):
             template_defs = [template_defs]
-        
+        elif (
+            isinstance(template_defs, list)
+            and template_defs
+            and isinstance(template_defs[0], str)
+        ):
+            template_defs = [template_defs]
+
         templates = []
         for template in template_defs:
             parsed = _parse_template(template, types)
@@ -410,6 +436,25 @@ def load_naming_config(path=None):
     raw_col_seg = col_cfg.get("segments") or col_cfg.get("pattern", "")
     column_segments = _parse_template(raw_col_seg, types) if raw_col_seg else []
     common_columns = set(col_cfg.get("common_columns", []))
+
+    table_name_cfg = raw.get("table_name", {})
+    table_name_max_length = (
+        table_constraints.get("max_length")
+        if isinstance(table_constraints, dict)
+        else None
+    )
+    if table_name_max_length is None:
+        table_name_max_length = (
+            table_name_cfg.get("max_length")
+            if isinstance(table_name_cfg, dict)
+            else None
+        )
+
+    table_name_max_length = (
+        int(table_name_max_length)
+        if table_name_max_length is not None
+        else None
+    )
     
     return NamingConfig(
         types=types,
@@ -417,6 +462,7 @@ def load_naming_config(path=None):
         layer_order=layer_order,
         column_segments=column_segments,
         common_columns=common_columns,
+        table_name_max_length=table_name_max_length,
     )
 
 

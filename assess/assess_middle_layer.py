@@ -378,6 +378,10 @@ def _check_table_name_any_template(name: str, layer: str, nc) -> bool:
             return True
     return False
 
+def _check_table_name_length(name: str, nc) -> bool:
+    max_length = getattr(nc, "table_name_max_length", None)
+    return max_length is None or len(name) <= max_length
+
 def _check_column_name(col_name: str, nc) -> tuple[bool, list[str]]:
     if col_name in nc.common_columns:
         return True, ["通用列名"]
@@ -420,6 +424,12 @@ def score_naming_conventions(tables: list, nc) -> dict:
             tbl_passed += 1
         else:
             tbl_violations.append(f"违反: 表名符合规范模板")
+        if getattr(nc, "table_name_max_length", None) is not None:
+            tbl_total += 1
+            if _check_table_name_length(name, nc):
+                tbl_passed += 1
+            else:
+                tbl_violations.append(f"违反: 表名长度 <= {nc.table_name_max_length}")
 
         # --- 字段检查 ---
         col_violations = []
@@ -470,6 +480,14 @@ def score_naming_conventions(tables: list, nc) -> dict:
         pct=round(passed / total * 100, 1) if total else 0,
     )
 
+    max_length = getattr(nc, "table_name_max_length", None)
+    if max_length is not None:
+        passed = sum(1 for t in middle if _check_table_name_length(t["name"], nc))
+        rule_summary[f"表名长度 <= {max_length}"] = dict(
+            pass_count=passed,
+            total=total,
+            pct=round(passed / total * 100, 1) if total else 0,
+        )
 
     col_total = 0
     col_passed = 0

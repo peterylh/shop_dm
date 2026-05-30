@@ -1,4 +1,9 @@
-from assess.assess_middle_layer import assess, generate_report
+from config import load_naming_config, PROJECT_ROOT
+from assess.assess_middle_layer import (
+    assess,
+    generate_report,
+    score_naming_conventions,
+)
 
 
 def test_assess_returns_raw_and_display_scores(monkeypatch, sample_lineage_data):
@@ -37,3 +42,20 @@ def test_generate_report_contains_raw_and_display_scores(
     assert "总体评分(原始)" in report
     assert "【架构合理性】评分: 75.0" in report
     assert "Σ(每表 cap 后权重) = 1" in report
+
+
+def test_score_naming_conventions_checks_table_name_length():
+    nc = load_naming_config(PROJECT_ROOT / "naming_config_enterprise.yaml")
+    tables = [
+        {"name": "M_WEMG_04_CHREM_DI", "layer": "DWD", "columns": []},
+        {"name": "M_WEMG_04_CHREMEXTRALONGNAME_DI", "layer": "DWD", "columns": []},
+    ]
+
+    result = score_naming_conventions(tables, nc)
+
+    assert result["rule_summary"]["表名长度 <= 30"] == {
+        "pass_count": 1,
+        "total": 2,
+        "pct": 50.0,
+    }
+    assert result["details"][1]["table_checks"]["violations"] == ["违反: 表名长度 <= 30"]
