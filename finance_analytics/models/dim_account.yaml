@@ -1,0 +1,5 @@
+version: 2
+name: dim_account
+layer: DIM
+config:
+  materialized: full

@@ -17,7 +17,7 @@ import sqlglot
 from sqlglot import exp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import PROJECT_CONFIG
+from config import PROJECT_CONFIG, determine_layer
 
 LINEAGE_DIR = Path(__file__).parent
 
@@ -58,10 +58,10 @@ def load_lineage_data(project):
         return json.load(f)
 
 
-def _layer_priority(tbl):
+def _layer_priority(tbl, project):
     from config import get_naming_config
     nc = get_naming_config()
-    layer = nc.determine_layer(tbl)
+    layer = determine_layer(tbl, project)
     rank = nc.layer_rank(layer)
     return rank + 1 if rank >= 0 else 0
 
@@ -70,7 +70,7 @@ def _strip_db(name, current_db):
     return name.replace(f"{current_db}.", "")
 
 
-def generate_jobs(data, tasks_dir, current_db, job_logic=None):
+def generate_jobs(data, tasks_dir, current_db, job_logic=None, project="shop"):
     file_edges = {}
     for e in data["edges"]:
         fname = e.get("source_file", "")
@@ -96,12 +96,14 @@ def generate_jobs(data, tasks_dir, current_db, job_logic=None):
             elif isinstance(stmt, exp.Update):
                 targets.add(_strip_db(stmt.this.sql(dialect="doris"), current_db))
 
-        main_target = max(targets, key=_layer_priority) if targets else f.stem
+        main_target = (
+            max(targets, key=lambda t: _layer_priority(t, project))
+            if targets else f.stem
+        )
         sources.discard(main_target)
 
         short = _strip_db(main_target, current_db)
-        from config import get_naming_config
-        layer = get_naming_config().determine_layer(short)
+        layer = determine_layer(short, project)
 
         jobs.append(
             OrderedDict(
@@ -204,6 +206,7 @@ def main():
         tasks_dir=ctx["tasks_dir"],
         current_db=ctx["current_db"],
         job_logic=ctx["job_logic"],
+        project=args.project,
     )
 
     lineage_json = json.dumps(data, ensure_ascii=False, indent=2)

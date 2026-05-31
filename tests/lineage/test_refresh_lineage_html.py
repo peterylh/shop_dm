@@ -95,6 +95,13 @@ def test_generate_jobs_strips_project_db_and_defaults_logic(tmp_path, monkeypatc
         "config.get_naming_config",
         lambda: _FakeNamingConfig(),
     )
+    monkeypatch.setattr(
+        refresh_html,
+        "determine_layer",
+        lambda table_name, project: (
+            "DWD" if table_name.startswith("dwd_") else "OTHER"
+        ),
+    )
 
     tasks_dir = tmp_path / "tasks"
     tasks_dir.mkdir()
@@ -120,6 +127,7 @@ def test_generate_jobs_strips_project_db_and_defaults_logic(tmp_path, monkeypatc
         data,
         tasks_dir=tasks_dir,
         current_db="finance_analytics_dm",
+        project="finance_analytics",
     )
 
     assert len(jobs) == 1

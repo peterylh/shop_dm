@@ -96,3 +96,53 @@ def test_ensure_full_refresh_partitions_skips_non_partitioned_table(monkeypatch)
     )
 
     assert calls == ["SHOW CREATE TABLE shop_dm.ads_sales_dashboard;"]
+
+
+def test_load_schema_reads_table_model_files(monkeypatch, tmp_path):
+    project_dir = tmp_path / "demo_project"
+    models_dir = project_dir / "models"
+    models_dir.mkdir(parents=True)
+    (models_dir / "dwd_customer.yaml").write_text(
+        "version: 2\n"
+        "name: dwd_customer\n"
+        "layer: DWD\n"
+        "config:\n"
+        "  materialized: snapshot\n",
+        encoding="utf-8",
+    )
+    (models_dir / "ads_sales_dashboard.yaml").write_text(
+        "version: 2\n"
+        "layer: ADS\n"
+        "config:\n"
+        "  materialized: full\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(task_run, "_root", tmp_path)
+    monkeypatch.setitem(task_run.PROJECT_CONFIG, "demo", {"dir": "demo_project"})
+    task_run._SCHEMA_CONFIG_CACHE.clear()
+
+    assert task_run._load_schema("demo") == {
+        "dwd_customer": "snapshot",
+        "ads_sales_dashboard": "full",
+    }
+
+
+def test_load_schema_cache_is_scoped_by_project(monkeypatch, tmp_path):
+    for project, materialized in (("shop_like", "snapshot"), ("finance_like", "full")):
+        models_dir = tmp_path / project / "models"
+        models_dir.mkdir(parents=True)
+        (models_dir / "same_name.yaml").write_text(
+            "version: 2\n"
+            "name: same_name\n"
+            "config:\n"
+            f"  materialized: {materialized}\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setitem(task_run.PROJECT_CONFIG, project, {"dir": project})
+
+    monkeypatch.setattr(task_run, "_root", tmp_path)
+    task_run._SCHEMA_CONFIG_CACHE.clear()
+
+    assert task_run._load_schema("shop_like") == {"same_name": "snapshot"}
+    assert task_run._load_schema("finance_like") == {"same_name": "full"}

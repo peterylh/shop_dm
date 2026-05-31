@@ -32,7 +32,7 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME_UNIT_RE = re.compile(r'"dynamic_partition\.time_unit"\s*=\s*"(\w+)"', re.IGNORECASE)
 _TABLE_PARTITION_UNITS: dict[str, str] | None = None
 _TABLE_PARTITIONED_CACHE: dict[tuple[str, str], bool] = {}
-_SCHEMA_CONFIG_CACHE: dict | None = None
+_SCHEMA_CONFIG_CACHE: dict[str, dict[str, str]] = {}
 
 
 def _load_partition_units(project: str) -> dict[str, str]:
@@ -155,22 +155,39 @@ def _run_job(etl_date: str, job_name: str, sql_file: Path,
 
 
 def _load_schema(project: str) -> dict:
-    """加载 schema.yaml 配置."""
+    """加载表级模型配置, 兼容旧 schema.yaml."""
     global _SCHEMA_CONFIG_CACHE
-    if _SCHEMA_CONFIG_CACHE is not None:
-        return _SCHEMA_CONFIG_CACHE
-    schema_path = _root / PROJECT_CONFIG[project]["dir"] / "schema.yaml"
+    if project in _SCHEMA_CONFIG_CACHE:
+        return _SCHEMA_CONFIG_CACHE[project]
+
+    project_dir = _root / PROJECT_CONFIG[project]["dir"]
+    models_dir = project_dir / "models"
+    if models_dir.exists():
+        config = {}
+        for model_path in sorted(models_dir.glob("*.yaml")):
+            raw = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
+            if not isinstance(raw, dict):
+                continue
+            name = raw.get("name") or model_path.stem
+            mat = raw.get("config", {}).get("materialized", "incremental")
+            config[name] = mat
+        _SCHEMA_CONFIG_CACHE[project] = config
+        print(f"  加载 models/: {len(config)} 个模型")
+        return config
+
+    schema_path = project_dir / "schema.yaml"
     if not schema_path.exists():
-        print(f"  未找到 schema.yaml, 使用默认配置 (incremental)")
+        print(f"  未找到 models/ 或 schema.yaml, 使用默认配置 (incremental)")
+        _SCHEMA_CONFIG_CACHE[project] = {}
         return {}
     with open(schema_path, encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
+        raw = yaml.safe_load(f) or {}
     config = {}
     for model in raw.get("models", []):
         name = model["name"]
         mat = model.get("config", {}).get("materialized", "incremental")
         config[name] = mat
-    _SCHEMA_CONFIG_CACHE = config
+    _SCHEMA_CONFIG_CACHE[project] = config
     print(f"  加载 schema.yaml: {len(config)} 个模型")
     return config
 

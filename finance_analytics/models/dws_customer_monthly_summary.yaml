@@ -1,0 +1,5 @@
+version: 2
+name: dws_customer_monthly_summary
+layer: DWS
+config:
+  materialized: full

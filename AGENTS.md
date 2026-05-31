@@ -29,12 +29,12 @@ shop-dm/
 │   ├── data/                       # ODS 初始化数据 SQL
 │   ├── tasks/                      # ETL 作业 SQL
 │   │   └── full_refresh/           # shop 专用批量全刷 SQL
-│   └── schema.yaml                 # 作业物化方式配置
+│   └── models/                     # 表级元数据配置 (tablename.yaml)
 ├── finance_analytics/              # 金融分析数仓
 │   ├── ddl/                        # 17 ODS / 17 DWD / 12 DWS / 9 DIM / 4 ADS
 │   ├── data/                       # ODS 初始化数据 SQL
 │   ├── tasks/                      # 可执行 ETL SQL
-│   ├── schema.yaml                 # 物化配置
+│   ├── models/                     # 表级元数据配置 (tablename.yaml)
 │   └── generate_ods_data.py        # 生成 ODS 模拟数据 SQL
 ├── lineage/
 │   ├── __init__.py
@@ -162,6 +162,25 @@ python lineage/refresh_lineage_html.py --project finance_analytics
 - `table_lineage`
 
 ## ETL 执行与初始化
+
+### 表级模型元数据
+
+项目表元数据按表拆分存放在 `{project}/models/{table_name}.yaml`，用于记录表所属层级、描述与物化方式等信息。
+
+示例：
+
+```yaml
+version: 2
+name: dwd_customer
+layer: DWD
+description: 客户每日快照
+config:
+  materialized: snapshot
+```
+
+`task_run.py --full-refresh` 会优先读取 `models/*.yaml` 中的 `config.materialized`，用于判断 `snapshot` / `full` / `incremental` 等执行策略。
+
+表层级以 `models/{table_name}.yaml` 中的 `layer` 为唯一权威来源；血缘与重构验证工具会读取该配置，不再通过表名前缀兜底推断层级。
 
 ### 直接执行单个 SQL
 

@@ -1,0 +1,5 @@
+version: 2
+name: dim_campaign
+layer: DIM
+config:
+  materialized: full

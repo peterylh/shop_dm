@@ -1,0 +1,6 @@
+version: 2
+name: dws_customer_order_summary
+layer: DWS
+description: 客户订单汇总
+config:
+  materialized: incremental

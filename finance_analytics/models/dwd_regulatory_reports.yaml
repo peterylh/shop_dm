@@ -1,0 +1,5 @@
+version: 2
+name: dwd_regulatory_reports
+layer: DWD
+config:
+  materialized: full

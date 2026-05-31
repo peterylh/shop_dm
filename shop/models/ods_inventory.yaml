@@ -1,0 +1,5 @@
+version: 2
+name: ods_inventory
+layer: ODS
+config:
+  materialized: source

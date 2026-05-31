@@ -1,3 +1,4 @@
+import refact.analyze_refact as analyze_refact
 from refact.analyze_refact import (
     determine_layer,
     get_partition_col,
@@ -34,9 +35,10 @@ def test_determine_layer_other():
     assert determine_layer("unknown_table") == "OTHER"
     assert determine_layer("") == "OTHER"
 
-def test_determine_layer_dim():
+def test_determine_layer_dim(monkeypatch):
+    monkeypatch.setattr(analyze_refact, "CURRENT_PROJECT", "finance_analytics")
     assert determine_layer("dim_date") == "DIM"
-    assert determine_layer("dim_store") == "DIM"
+    assert determine_layer("dim_customer") == "DIM"
 
 
 # ============================================================

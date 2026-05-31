@@ -13,7 +13,7 @@ class ClassifyResult:
     table_type: str      # "dimension" | "fact" | "other"
     confidence: float
     reasoning_steps: list[str]
-    is_violating_current_name: bool
+    is_violating_declared_layer: bool
 
 
 def build_prompt(ctx: TableContext) -> str:
@@ -55,7 +55,7 @@ def build_prompt(ctx: TableContext) -> str:
 4. 结合 DDL 中的字段特征（如是否存在大量 DECIMAL 度量），最终得出结论。
 
 请严格返回 JSON 格式数据:
-{{"inferred_layer": "ODS|DWD|DWS|ADS|DIM|OTHER", "table_type": "dimension|fact|other", "confidence": 0.0~1.0, "reasoning_steps": ["分析步骤1...", "分析步骤2..."], "is_violating_current_name": true/false}}
+{{"inferred_layer": "ODS|DWD|DWS|ADS|DIM|OTHER", "table_type": "dimension|fact|other", "confidence": 0.0~1.0, "reasoning_steps": ["分析步骤1...", "分析步骤2..."], "is_violating_declared_layer": true/false}}
 """
     return prompt
 
@@ -78,14 +78,16 @@ def parse_response(table_name: str, response: dict) -> ClassifyResult:
                               table_type=data.get("table_type", "other"),
                               confidence=float(data.get("confidence", 0.0)),
                               reasoning_steps=data.get("reasoning_steps", []),
-                              is_violating_current_name=bool(data.get("is_violating_current_name", False)))
+                              is_violating_declared_layer=bool(
+                                  data.get("is_violating_declared_layer", False)
+                              ))
     except json.JSONDecodeError as e:
         return ClassifyResult(table_name=table_name,
                               inferred_layer="OTHER",
                               table_type="other",
                               confidence=0.0,
                               reasoning_steps=[f"JSON 解析失败: {e}\n原文: {content}"],
-                              is_violating_current_name=False)
+                              is_violating_declared_layer=False)
 
 
 class TableClassifier:
@@ -119,7 +121,7 @@ class TableClassifier:
 
     def _compute_hash(self, ctx: TableContext) -> str:
         # 缓存 hash 需要包含所有影响 LLM 判断的特征
-        content = f"{ctx.ddl}|{ctx.etl_sql}|{ctx.upstream_tables}|{ctx.downstream_tables}|{ctx.depth_from_ods}"
+        content = f"{ctx.layer}|{ctx.ddl}|{ctx.etl_sql}|{ctx.upstream_tables}|{ctx.downstream_tables}|{ctx.depth_from_ods}"
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def _call_api(self, prompt: str) -> str:
@@ -160,7 +162,9 @@ class TableClassifier:
                                       table_type=res.get("table_type", "other"),
                                       confidence=res.get("confidence", 0.0),
                                       reasoning_steps=res.get("reasoning_steps", []),
-                                      is_violating_current_name=res.get("is_violating_current_name", False))
+                                      is_violating_declared_layer=res.get(
+                                          "is_violating_declared_layer", False
+                                      ))
 
         prompt = build_prompt(ctx)
         resp_str = self._call_api(prompt)
@@ -176,7 +180,7 @@ class TableClassifier:
                 "table_type": result.table_type,
                 "confidence": result.confidence,
                 "reasoning_steps": result.reasoning_steps,
-                "is_violating_current_name": result.is_violating_current_name
+                "is_violating_declared_layer": result.is_violating_declared_layer,
             }
         }
         self._save_cache()
@@ -197,5 +201,5 @@ class TableClassifier:
                                    table_type="other",
                                    confidence=0.0,
                                    reasoning_steps=[f"分类异常: {str(e)}"],
-                                   is_violating_current_name=False))
+                                   is_violating_declared_layer=False))
         return results

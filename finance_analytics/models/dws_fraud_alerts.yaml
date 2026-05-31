@@ -1,0 +1,5 @@
+version: 2
+name: dws_fraud_alerts
+layer: DWS
+config:
+  materialized: full

@@ -14,7 +14,7 @@ _root = Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from config import PROJECT_CONFIG
+from config import PROJECT_CONFIG, determine_layer as determine_config_layer
 
 import sqlglot
 from sqlglot import exp
@@ -82,9 +82,8 @@ def build_schema_from_ddl(ddl_dir):
 # ============================================================
 
 def determine_layer(table_name):
-    from config import get_naming_config
     short = _strip_db(table_name)
-    return get_naming_config().determine_layer(short)
+    return determine_config_layer(short, CURRENT_PROJECT)
 
 
 # ============================================================

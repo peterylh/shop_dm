@@ -1,0 +1,5 @@
+version: 2
+name: ods_products
+layer: ODS
+config:
+  materialized: source

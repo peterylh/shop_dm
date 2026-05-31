@@ -1,0 +1,6 @@
+version: 2
+name: dwd_product
+layer: DWD
+description: 商品每日快照
+config:
+  materialized: snapshot

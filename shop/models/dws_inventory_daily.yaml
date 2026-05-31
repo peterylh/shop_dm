@@ -1,0 +1,6 @@
+version: 2
+name: dws_inventory_daily
+layer: DWS
+description: 库存日汇总
+config:
+  materialized: incremental

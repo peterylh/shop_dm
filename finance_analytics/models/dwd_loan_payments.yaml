@@ -1,0 +1,5 @@
+version: 2
+name: dwd_loan_payments
+layer: DWD
+config:
+  materialized: full

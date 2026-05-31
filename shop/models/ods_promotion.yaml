@@ -1,0 +1,5 @@
+version: 2
+name: ods_promotion
+layer: ODS
+config:
+  materialized: source

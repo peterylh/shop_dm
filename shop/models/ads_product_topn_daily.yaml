@@ -1,0 +1,6 @@
+version: 2
+name: ads_product_topn_daily
+layer: ADS
+description: 商品日销售排行
+config:
+  materialized: incremental

@@ -30,6 +30,7 @@ def test_build_prompt_includes_all_info():
     assert "INSERT INTO" in prompt
     assert "ods_customer" in prompt
     assert "ads_rfm" in prompt
+    assert "is_violating_declared_layer" in prompt
 
 
 def test_build_prompt_without_etl():
@@ -54,15 +55,23 @@ def test_parse_dimension_response():
     resp = {
         "choices": [{
             "message": {
-                "content": '{"table_type": "dimension", "confidence": 0.9, "reasoning_steps": ["test"]}'
+                "content": json.dumps({
+                    "inferred_layer": "DIM",
+                    "table_type": "dimension",
+                    "confidence": 0.9,
+                    "reasoning_steps": ["test"],
+                    "is_violating_declared_layer": True,
+                })
             }
         }]
     }
     result = parse_response("dwd_customer", resp)
     assert result.table_name == "dwd_customer"
+    assert result.inferred_layer == "DIM"
     assert result.table_type == "dimension"
     assert result.confidence == 0.9
     assert result.reasoning_steps == ["test"]
+    assert result.is_violating_declared_layer is True
 
 
 def test_parse_fact_response():
@@ -173,6 +182,24 @@ def test_cache_miss_calls_api(tmp_path, monkeypatch):
     saved = json.loads(cache_file.read_text())
     assert "t1" in saved
     assert saved["t1"]["result"]["table_type"] == "fact"
+    assert "is_violating_declared_layer" in saved["t1"]["result"]
+    assert "is_violating_current_name" not in saved["t1"]["result"]
+
+
+def test_cache_hash_includes_declared_layer(tmp_path):
+    classifier = TableClassifier(api_key="test", cache_file=tmp_path / "cache.json")
+
+    base = dict(
+        table_name="t1",
+        ddl="ddl1",
+        etl_sql="etl1",
+        upstream_tables=[],
+        downstream_tables=[],
+    )
+    dwd_ctx = TableContext(layer="DWD", **base)
+    dws_ctx = TableContext(layer="DWS", **base)
+
+    assert classifier._compute_hash(dwd_ctx) != classifier._compute_hash(dws_ctx)
 
 
 # ============================================================

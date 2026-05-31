@@ -1,0 +1,5 @@
+version: 2
+name: ods_marketing_campaigns
+layer: ODS
+config:
+  materialized: source

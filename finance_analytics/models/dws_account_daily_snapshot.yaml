@@ -1,0 +1,5 @@
+version: 2
+name: dws_account_daily_snapshot
+layer: DWS
+config:
+  materialized: full
