@@ -1,0 +1,6 @@
+version: 2
+name: dwd_customer
+layer: DWD
+description: 客户每日快照
+config:
+  materialized: snapshot

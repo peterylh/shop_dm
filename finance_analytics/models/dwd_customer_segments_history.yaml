@@ -1,0 +1,5 @@
+version: 2
+name: dwd_customer_segments_history
+layer: DWD
+config:
+  materialized: full

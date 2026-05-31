@@ -1,0 +1,5 @@
+version: 2
+name: ads_product_summary
+layer: ADS
+config:
+  materialized: full

@@ -1,0 +1,5 @@
+version: 2
+name: ods_order_item
+layer: ODS
+config:
+  materialized: source

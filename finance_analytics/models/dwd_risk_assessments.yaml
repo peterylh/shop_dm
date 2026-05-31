@@ -1,0 +1,5 @@
+version: 2
+name: dwd_risk_assessments
+layer: DWD
+config:
+  materialized: full

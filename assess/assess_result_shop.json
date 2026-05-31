@@ -1,13 +1,13 @@
 {
   "project": "shop",
-  "overall_raw": 65.4,
-  "overall_display": 65.4,
+  "overall_raw": 55.8,
+  "overall_display": 55.8,
   "weights": {
     "reuse": 0.25,
     "depth": 0.25,
     "architecture": 0.25,
     "naming": 0.25,
-    "enable_llm": false,
+    "enable_llm": true,
     "no_cache": false
   },
   "reuse": {
@@ -133,15 +133,21 @@
   },
   "architecture": {
     "table_count": 28,
-    "capped_total": 5,
+    "capped_total": 17,
     "table_capped": {
       "ads_inventory_alert": 2,
       "ads_product_topn_daily": 1,
       "ads_sales_dashboard": 1,
-      "ads_store_performance": 1
+      "ads_store_performance": 1,
+      "dwd_product": 3,
+      "dwd_store": 3,
+      "dwd_customer": 3,
+      "dwd_promotion": 1,
+      "dws_category_sales_monthly": 2
     },
     "violation_summary": {
-      "低": 5
+      "低": 9,
+      "中": 4
     },
     "violations": [
       {
@@ -188,10 +194,90 @@
         "description": "跳过中间层(DWD/DIM→ADS 或 ODS→DWS)",
         "source_file": "ads_store_performance.sql",
         "belongs_to": "ads_store_performance"
+      },
+      {
+        "source": "dwd_product(DWD)",
+        "target": "dwd_product(DIM)",
+        "severity": "中",
+        "weight": 2,
+        "description": "分层配置疑似错误(LLM): 配置层=DWD, 推断层=DIM",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_product"
+      },
+      {
+        "source": "dwd_product(DWD)",
+        "target": "建议: DIM",
+        "severity": "低",
+        "weight": 1,
+        "description": "维度表位置不当(LLM): 维度表应置于 DIM 层",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_product"
+      },
+      {
+        "source": "dwd_store(DWD)",
+        "target": "dwd_store(DIM)",
+        "severity": "中",
+        "weight": 2,
+        "description": "分层配置疑似错误(LLM): 配置层=DWD, 推断层=DIM",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_store"
+      },
+      {
+        "source": "dwd_store(DWD)",
+        "target": "建议: DIM",
+        "severity": "低",
+        "weight": 1,
+        "description": "维度表位置不当(LLM): 维度表应置于 DIM 层",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_store"
+      },
+      {
+        "source": "dwd_customer(DWD)",
+        "target": "dwd_customer(ADS)",
+        "severity": "中",
+        "weight": 2,
+        "description": "分层配置疑似错误(LLM): 配置层=DWD, 推断层=ADS",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_customer"
+      },
+      {
+        "source": "dwd_customer(DWD)",
+        "target": "建议: DIM",
+        "severity": "低",
+        "weight": 1,
+        "description": "维度表位置不当(LLM): 维度表应置于 DIM 层",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_customer"
+      },
+      {
+        "source": "dwd_promotion(DWD)",
+        "target": "建议: DIM",
+        "severity": "低",
+        "weight": 1,
+        "description": "维度表位置不当(LLM): 维度表应置于 DIM 层",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dwd_promotion"
+      },
+      {
+        "source": "dws_category_sales_monthly(DWS)",
+        "target": "dws_category_sales_monthly(ADS)",
+        "severity": "中",
+        "weight": 2,
+        "description": "分层配置疑似错误(LLM): 配置层=DWS, 推断层=ADS",
+        "source_file": "",
+        "source_type": "llm",
+        "belongs_to": "dws_category_sales_monthly"
       }
     ],
-    "raw": 82.1,
-    "display": 82.1
+    "raw": 39.3,
+    "display": 39.3
   },
   "naming": {
     "details": [
@@ -199,8 +285,8 @@
         "table": "dws_customer_order_summary",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -216,14 +302,14 @@
             "total_discount"
           ]
         },
-        "score": 33.3
+        "score": 40.0
       },
       {
         "table": "dws_inventory_daily",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -237,14 +323,14 @@
             "safety_stock"
           ]
         },
-        "score": 55.6
+        "score": 60.0
       },
       {
         "table": "dwd_product",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -264,14 +350,14 @@
             "unit_price"
           ]
         },
-        "score": 41.2
+        "score": 44.4
       },
       {
         "table": "dwd_store",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -289,14 +375,14 @@
             "store_level"
           ]
         },
-        "score": 42.9
+        "score": 46.7
       },
       {
         "table": "dws_product_sales_daily",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -311,14 +397,14 @@
             "sale_quantity"
           ]
         },
-        "score": 37.5
+        "score": 44.4
       },
       {
         "table": "dws_promotion_effect_daily",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -334,14 +420,14 @@
             "sale_quantity"
           ]
         },
-        "score": 45.5
+        "score": 50.0
       },
       {
         "table": "dwd_order_detail",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -360,14 +446,14 @@
             "unit_price"
           ]
         },
-        "score": 52.6
+        "score": 55.0
       },
       {
         "table": "dws_store_sales_daily",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -383,14 +469,14 @@
             "total_amount"
           ]
         },
-        "score": 33.3
+        "score": 40.0
       },
       {
         "table": "dwd_customer",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -410,14 +496,14 @@
             "province"
           ]
         },
-        "score": 33.3
+        "score": 37.5
       },
       {
         "table": "dwd_inventory",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -431,14 +517,14 @@
             "safety_stock"
           ]
         },
-        "score": 63.6
+        "score": 66.7
       },
       {
         "table": "dwd_promotion",
         "layer": "DWD",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -452,14 +538,14 @@
             "status"
           ]
         },
-        "score": 69.2
+        "score": 71.4
       },
       {
         "table": "dws_category_sales_monthly",
         "layer": "DWS",
         "table_checks": {
-          "passed": 0,
-          "total": 1,
+          "passed": 1,
+          "total": 2,
           "violations": [
             "违反: 表名符合规范模板"
           ]
@@ -474,7 +560,7 @@
             "stat_month"
           ]
         },
-        "score": 37.5
+        "score": 44.4
       }
     ],
     "rule_summary": {
@@ -482,6 +568,11 @@
         "pass_count": 0,
         "total": 12,
         "pct": 0.0
+      },
+      "表名长度 <= 30": {
+        "pass_count": 12,
+        "total": 12,
+        "pct": 100.0
       },
       "后缀 _id": {
         "pass_count": 23,
@@ -534,7 +625,7 @@
         "pct": 50.4
       }
     },
-    "raw": 46.2,
-    "display": 46.2
+    "raw": 50.3,
+    "display": 50.3
   }
 }

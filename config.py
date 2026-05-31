@@ -48,15 +48,6 @@ class NamingConfig:
     common_columns: set[str]
     table_name_max_length: Optional[int] = None
 
-    def determine_layer(self, table_name: str) -> str:
-        short = table_name.split(".")[-1]
-        for name in self.layer_order:
-            if name in self.layers:
-                for segs in self.layers[name].templates:
-                    if self._match_segments(short, segs) is not None:
-                        return name
-        return "OTHER"
-
     def layer_rank(self, layer_name: str) -> int:
         layer = self.layers.get(layer_name)
         return layer.rank if layer else -1
@@ -467,6 +458,57 @@ def load_naming_config(path=None):
 
 
 _naming_config_cache = {}
+_model_metadata_cache = {}
+
+
+def load_model_metadata(project: str) -> dict:
+    """加载项目 models/{table}.yaml 表级元数据."""
+    if project in _model_metadata_cache:
+        return _model_metadata_cache[project]
+
+    cfg = PROJECT_CONFIG.get(project)
+    if not cfg:
+        _model_metadata_cache[project] = {}
+        return {}
+
+    models_dir = PROJECT_ROOT / cfg["dir"] / "models"
+    if not models_dir.exists():
+        _model_metadata_cache[project] = {}
+        return {}
+
+    metadata = {}
+    for model_path in sorted(models_dir.glob("*.yaml")):
+        raw = yaml.safe_load(model_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(raw, dict):
+            continue
+        name = raw.get("name") or model_path.stem
+        raw = dict(raw)
+        raw["name"] = name
+        metadata[name] = raw
+
+    _model_metadata_cache[project] = metadata
+    return metadata
+
+
+def get_model_metadata(table_name: str, project: str) -> Optional[dict]:
+    short = table_name.split(".")[-1]
+    return load_model_metadata(project).get(short)
+
+
+def get_model_layer(table_name: str, project: str) -> Optional[str]:
+    metadata = get_model_metadata(table_name, project)
+    if not metadata:
+        return None
+    layer = metadata.get("layer")
+    return str(layer).upper() if layer else None
+
+
+def determine_layer(table_name: str, project: str = None) -> str:
+    """从项目 models 显式元数据获取表层级."""
+    short = table_name.split(".")[-1]
+    if not project:
+        return "OTHER"
+    return get_model_layer(short, project) or "OTHER"
 
 
 def get_naming_config(project: str = None, config_file: str = None) -> NamingConfig:

@@ -1,0 +1,5 @@
+version: 2
+name: dim_location
+layer: DIM
+config:
+  materialized: full

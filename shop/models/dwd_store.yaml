@@ -1,0 +1,6 @@
+version: 2
+name: dwd_store
+layer: DWD
+description: 门店每日快照
+config:
+  materialized: snapshot

@@ -1,6 +1,7 @@
 """config.py NamingConfig 的单元测试"""
 import re
 import pytest
+import config
 from config import (
     TypeDef, LayerDef, NamingConfig,
     _parse_segments, _parse_template, load_naming_config,
@@ -370,47 +371,29 @@ class TestMatchColumn:
         assert r == {"prefix_field": "max", "entity": "score", "suffix_field": "num"}
 
 
-# ============================================================
-# NamingConfig.determine_layer
-# ============================================================
+class TestTopLevelDetermineLayer:
+    def test_prefers_model_layer(self, monkeypatch, tmp_path):
+        models_dir = tmp_path / "demo_project" / "models"
+        models_dir.mkdir(parents=True)
+        (models_dir / "legacy_name.yaml").write_text(
+            "version: 2\n"
+            "name: legacy_name\n"
+            "layer: ADS\n",
+            encoding="utf-8",
+        )
 
-class TestDetermineLayer:
-    @pytest.fixture
-    def nc(self):
-        return _build_nc({
-            "ODS": ["ods", "$entity"],
-            "DWD": ["dwd", "$entity"],
-            "DWS": ["dws", "$entity"],
-            "ADS": ["ads", "$entity"],
-            "DIM": ["dim", "$entity"],
-        })
+        monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setitem(config.PROJECT_CONFIG, "demo", {"dir": "demo_project"})
+        config._model_metadata_cache.clear()
 
-    def test_ods(self, nc):
-        assert nc.determine_layer("ods_customer") == "ODS"
+        assert config.determine_layer("legacy_name", "demo") == "ADS"
 
-    def test_dwd(self, nc):
-        assert nc.determine_layer("dwd_product") == "DWD"
+    def test_no_prefix_fallback(self):
+        assert config.determine_layer("ods_", "shop") == "OTHER"
+        assert config.determine_layer("dwd_", "shop") == "OTHER"
 
-    def test_dws(self, nc):
-        assert nc.determine_layer("dws_store") == "DWS"
-
-    def test_ads(self, nc):
-        assert nc.determine_layer("ads_dashboard") == "ADS"
-
-    def test_dim(self, nc):
-        assert nc.determine_layer("dim_date") == "DIM"
-
-    def test_db_prefixed(self, nc):
-        assert nc.determine_layer("shop_dm.ods_order") == "ODS"
-
-    def test_other(self, nc):
-        assert nc.determine_layer("unknown_table") == "OTHER"
-
-    def test_empty(self, nc):
-        assert nc.determine_layer("") == "OTHER"
-
-    def test_exact_prefix(self, nc):
-        assert nc.determine_layer("dwd_") == "DWD"
+    def test_without_project_returns_other(self):
+        assert config.determine_layer("dwd_customer") == "OTHER"
 
 
 # ============================================================
@@ -544,27 +527,6 @@ class TestEnterpriseNaming:
 
     def test_table_name_max_length(self, nc):
         assert nc.table_name_max_length == 30
-
-
-class TestEnterpriseDetermineLayer:
-    @pytest.fixture
-    def nc(self):
-        return load_naming_config(PROJECT_ROOT / "naming_config_enterprise.yaml")
-
-    def test_dwd_v2(self, nc):
-        assert nc.determine_layer("M_WEMG_04_CHREM_DI") == "DWD"
-
-    def test_dws_v2(self, nc):
-        assert nc.determine_layer("I_FRTN_CUST_PROD_BAL_DS") == "DWS"
-
-    def test_ads_v2(self, nc):
-        assert nc.determine_layer("A13_CUST_DS") == "ADS"
-
-    def test_dim_v2(self, nc):
-        assert nc.determine_layer("DIM_BASE_CUST_INFO_INFO") == "DIM"
-
-    def test_dim_pm(self, nc):
-        assert nc.determine_layer("DIM_PM_CD") == "DIM"
 
 
 class TestGetNamingConfigByProject:

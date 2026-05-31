@@ -1,0 +1,6 @@
+version: 2
+name: ads_promotion_roi
+layer: ADS
+description: 促销 ROI 分析
+config:
+  materialized: incremental

@@ -1,0 +1,6 @@
+version: 2
+name: dwd_order_detail
+layer: DWD
+description: 订单明细事实表
+config:
+  materialized: incremental

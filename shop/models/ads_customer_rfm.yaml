@@ -1,0 +1,6 @@
+version: 2
+name: ads_customer_rfm
+layer: ADS
+description: 客户 RFM 分析
+config:
+  materialized: incremental

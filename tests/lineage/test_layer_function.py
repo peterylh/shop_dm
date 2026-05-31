@@ -1,9 +1,12 @@
 import sqlglot
 from sqlglot import exp
-from lineage.lineage_extractor import determine_layer, _table_name
+from lineage.lineage_extractor import configure_project, determine_layer, _table_name
 
 
 class TestDetermineLayer:
+    def setup_method(self):
+        configure_project("shop")
+
     def test_ods(self):
         assert determine_layer("ods_customer") == "ODS"
         assert determine_layer("shop_dm.ods_order") == "ODS"
@@ -21,8 +24,9 @@ class TestDetermineLayer:
         assert determine_layer("shop_dm.ads_sales_dashboard") == "ADS"
 
     def test_dim(self):
+        configure_project("finance_analytics")
         assert determine_layer("dim_date") == "DIM"
-        assert determine_layer("shop_dm.dim_store") == "DIM"
+        assert determine_layer("finance_analytics_dm.dim_customer") == "DIM"
 
     def test_other(self):
         assert determine_layer("unknown_table") == "OTHER"
@@ -30,8 +34,8 @@ class TestDetermineLayer:
         assert determine_layer("") == "OTHER"
 
     def test_exact_boundary(self):
-        assert determine_layer("ods_") == "ODS"
-        assert determine_layer("dwd_") == "DWD"
+        assert determine_layer("ods_") == "OTHER"
+        assert determine_layer("dwd_") == "OTHER"
 
 
 class TestTableName:

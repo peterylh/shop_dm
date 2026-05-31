@@ -1,0 +1,5 @@
+version: 2
+name: dwd_account_events
+layer: DWD
+config:
+  materialized: full

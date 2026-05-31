@@ -1,0 +1,5 @@
+version: 2
+name: ods_atm_locations
+layer: ODS
+config:
+  materialized: source

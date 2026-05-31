@@ -1,0 +1,6 @@
+version: 2
+name: dwd_promotion
+layer: DWD
+description: 促销活动每日快照
+config:
+  materialized: snapshot

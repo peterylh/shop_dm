@@ -1,0 +1,6 @@
+version: 2
+name: dws_product_sales_daily
+layer: DWS
+description: 商品日销售汇总
+config:
+  materialized: incremental

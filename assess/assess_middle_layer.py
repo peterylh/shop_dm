@@ -220,14 +220,11 @@ def _depth_to_score(depth: int) -> int:
 
 
 def score_lineage_depth(tables: list, edges: list,
-                        indirect_edges: list, nc) -> dict:
+                        indirect_edges: list, nc=None) -> dict:
     table_layers = build_table_layer_map(tables)
     upstream, _ = build_table_graph(edges, indirect_edges)
 
-    # 补齐上游中可能缺失的层信息（按表名前缀推断）
-    for tbl in upstream:
-        if tbl not in table_layers:
-            table_layers[tbl] = nc.determine_layer(tbl)
+    # 不按表名推断缺失层级；models/lineage 中没有声明的表按 OTHER 处理。
 
     ads = [t for t in tables if t["layer"] == "ADS"]
 
@@ -305,21 +302,21 @@ def score_architecture_health(tables: list, edges: list,
                     ))
                 table_weight[tgt] += weight
 
-    # ---- LLM 检测: 分层错配 & 维度表位置不当 (归属被评估表本身) ----
+    # ---- LLM 检测: 分层配置疑似错误 & 维度表位置不当 (归属被评估表本身) ----
     if llm_results:
         cls_map = {r.table_name: r for r in llm_results}
         table_map = {t["name"]: t for t in tables}
         for name, res in cls_map.items():
             layer = table_map[name]["layer"] if name in table_map else "OTHER"
 
-            if res.is_violating_current_name:
+            if res.is_violating_declared_layer:
                 weight = SEVERITY_WEIGHT["中"]
                 violations.append(dict(
                     source=f"{name}({layer})",
                     target=f"{name}({res.inferred_layer})",
                     severity="中",
                     weight=weight,
-                    description=f"分层错配(LLM): 命名层={layer}, 推断层={res.inferred_layer}",
+                    description=f"分层配置疑似错误(LLM): 配置层={layer}, 推断层={res.inferred_layer}",
                     source_file="",
                     source_type="llm",
                     belongs_to=name,
@@ -681,7 +678,7 @@ def generate_report(scores: dict, weights: dict, project: str) -> str:
         parts.append(f"\n  无违规 ✓")
 
     if any(v.get("source_type") == "llm" for v in architecture["violations"]):
-        parts.append(f"\n  * 分层错配与维度表位置由 LLM 推断，仅供参考，不一定 100% 正确")
+        parts.append(f"\n  * 分层配置合理性与维度表位置由 LLM 推断，仅供参考，不一定 100% 正确")
     parts.append(sep)
 
     # ============================================================

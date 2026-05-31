@@ -1,0 +1,5 @@
+version: 2
+name: ods_customers
+layer: ODS
+config:
+  materialized: source

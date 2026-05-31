@@ -1,0 +1,5 @@
+version: 2
+name: dim_economic_indicators
+layer: DIM
+config:
+  materialized: full

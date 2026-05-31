@@ -25,7 +25,13 @@ from ddl_deriver.ddl_deriver import (
     changes_to_json,
 )
 
-from config import PROJECT_CONFIG, DORIS_HOST, DORIS_PORT, DORIS_USER
+from config import (
+    PROJECT_CONFIG,
+    DORIS_HOST,
+    DORIS_PORT,
+    DORIS_USER,
+    determine_layer as determine_config_layer,
+)
 
 # ============================================================
 # 环境配置
@@ -35,9 +41,12 @@ from config import PROJECT_CONFIG, DORIS_HOST, DORIS_PORT, DORIS_USER
 # 辅助函数
 # ============================================================
 
+CURRENT_PROJECT = "shop"
+
+
 def determine_layer(table_name: str) -> str:
-    from config import get_naming_config
-    return get_naming_config().determine_layer(table_name)
+    short = table_name.split(".")[-1]
+    return determine_config_layer(short, CURRENT_PROJECT)
 
 
 def parse_partition_col_from_ddl(ddl_text: str) -> str:
@@ -103,6 +112,9 @@ def main():
     parser.add_argument("--anchor", nargs="*", default=None, help="手工指定锚点表")
     parser.add_argument("--base-branch", default="main", help="Git 基线分支")
     args = parser.parse_args()
+
+    global CURRENT_PROJECT
+    CURRENT_PROJECT = args.project
 
     cfg = PROJECT_CONFIG[args.project]
     project_db = cfg["db"]
